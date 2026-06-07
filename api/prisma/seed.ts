@@ -1,163 +1,236 @@
-import { PrismaClient } from '@prisma/client';
+import "dotenv/config";
+import { PrismaClient } from "@prisma/client";
+import { PrismaBetterSqlite3 } from "@prisma/adapter-better-sqlite3";
+import { Pool } from "pg";
+import { PrismaPg } from "@prisma/adapter-pg";
+import {
+  fetchWCMatches,
+  mapStatus,
+  mapStage,
+  getOutcome,
+} from "../src/lib/football-data";
 
-const prisma = new PrismaClient();
+function createClient() {
+  const url = process.env.DATABASE_URL || "";
+  if (url.startsWith("file:")) {
+    return new PrismaClient({
+      adapter: new PrismaBetterSqlite3({ url }),
+    } as any);
+  }
+  return new PrismaClient({
+    adapter: new PrismaPg(new Pool({ connectionString: url })),
+  } as any);
+}
 
-// 2026 FIFA World Cup - 48 teams, 8 groups of 6 teams
-// Total: 120 group stage matches + 31 knockout matches = 151 matches
+const prisma = createClient();
+
+// 2026 FIFA World Cup — 48 teams, 12 groups of 4 teams
+// Group stage:  12 × C(4,2) = 72 matches
+// Knockout:     16 (R32) + 8 (R16) + 4 (QF) + 2 (SF) + 1 (3rd) + 1 (Final) = 32
+// Total: 104 matches
 
 interface MatchData {
   homeTeam: string;
   awayTeam: string;
   kickoffTime: Date;
-  stage: 'GROUP' | 'ROUND_OF_16' | 'QF' | 'SF' | 'FINAL';
+  stage: "GROUP" | "LAST_32" | "ROUND_OF_16" | "QF" | "SF" | "FINAL";
+  group?: string;
 }
 
-// Generate World Cup 2026 matches
-// Note: Using placeholder dates (June-July 2026)
+const groupTeams: Record<string, string[]> = {
+  A: ["Mexico", "South Africa", "South Korea", "Czechia"],
+  B: ["Canada", "Bosnia & Herzegovina", "Qatar", "Switzerland"],
+  C: ["Brazil", "Morocco", "Haiti", "Scotland"],
+  D: ["United States", "Paraguay", "Australia", "Türkiye"],
+  E: ["Germany", "Curaçao", "Ivory Coast", "Ecuador"],
+  F: ["Netherlands", "Japan", "Sweden", "Tunisia"],
+  G: ["Belgium", "Egypt", "Iran", "New Zealand"],
+  H: ["Spain", "Uruguay", "Saudi Arabia", "Cabo Verde"],
+  I: ["France", "Senegal", "Norway", "Iraq"],
+  J: ["Argentina", "Algeria", "Austria", "Jordan"],
+  K: ["Portugal", "DR Congo", "Uzbekistan", "Colombia"],
+  L: ["England", "Croatia", "Ghana", "Panama"],
+};
+
 const generateMatches = (): MatchData[] => {
   const matches: MatchData[] = [];
 
-  // GROUP STAGE (120 matches)
-  // 8 groups (A-H), 6 teams per group, each plays 3 matches
-  const groups = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H'];
-  
-  // Placeholder team assignments for each group
-  const groupTeams: Record<string, string[]> = {
-    A: ['Argentina', 'Uruguay', 'Paraguay', 'Bolivia', 'Chile', 'Colombia'],
-    B: ['Brazil', 'Mexico', 'Peru', 'Ecuador', 'Jamaica', 'Curacao'],
-    C: ['France', 'Belgium', 'Netherlands', 'Austria', 'Czech Republic', 'Ukraine'],
-    D: ['Germany', 'Spain', 'Portugal', 'Poland', 'Italy', 'Switzerland'],
-    E: ['England', 'Wales', 'Scotland', 'Denmark', 'Sweden', 'Serbia'],
-    F: ['Croatia', 'Turkey', 'Greece', 'Romania', 'Bulgaria', 'Hungary'],
-    G: ['Japan', 'South Korea', 'Australia', 'Iran', 'Iraq', 'Uzbekistan'],
-    H: ['Nigeria', 'Cameroon', 'Morocco', 'Senegal', 'Tunisia', 'Egypt'],
-  };
+  // GROUP STAGE — 72 matches
+  let groupMatchDate = new Date("2026-06-11T12:00:00Z");
 
-  let groupMatchDate = new Date('2026-06-01T12:00:00Z');
-
-  // Generate all group matches
-  groups.forEach((group) => {
-    const teams = groupTeams[group];
-    
-    // Each group has 15 matches (round-robin: C(6,2) = 15)
+  for (const [group, teams] of Object.entries(groupTeams)) {
     for (let i = 0; i < teams.length; i++) {
       for (let j = i + 1; j < teams.length; j++) {
         matches.push({
           homeTeam: teams[i],
           awayTeam: teams[j],
           kickoffTime: new Date(groupMatchDate),
-          stage: 'GROUP',
+          stage: "GROUP",
+          group,
         });
-
-        // Increment date for next match (some same day, some different)
-        groupMatchDate = new Date(groupMatchDate.getTime() + 4 * 60 * 60 * 1000); // 4 hours later
+        groupMatchDate = new Date(
+          groupMatchDate.getTime() + 4 * 60 * 60 * 1000,
+        );
       }
     }
-  });
+  }
 
-  // KNOCKOUT STAGE (31 matches)
-  // Round of 16: 16 matches (dates: June 28-July 5)
-  let knockoutDate = new Date('2026-07-01T12:00:00Z');
-
-  const ro16Teams = [
-    { home: 'Group A Winner', away: 'Group B Runner-up' },
-    { home: 'Group B Winner', away: 'Group A Runner-up' },
-    { home: 'Group C Winner', away: 'Group D Runner-up' },
-    { home: 'Group D Winner', away: 'Group C Runner-up' },
-    { home: 'Group E Winner', away: 'Group F Runner-up' },
-    { home: 'Group F Winner', away: 'Group E Runner-up' },
-    { home: 'Group G Winner', away: 'Group H Runner-up' },
-    { home: 'Group H Winner', away: 'Group G Runner-up' },
-    { home: 'Group A Runner-up', away: 'Group B Winner' },
-    { home: 'Group C Runner-up', away: 'Group D Winner' },
-    { home: 'Group E Runner-up', away: 'Group F Winner' },
-    { home: 'Group G Runner-up', away: 'Group H Winner' },
-    { home: 'Group B Runner-up', away: 'Group A Winner' },
-    { home: 'Group D Runner-up', away: 'Group C Winner' },
-    { home: 'Group F Runner-up', away: 'Group E Winner' },
-    { home: 'Group H Runner-up', away: 'Group G Winner' },
+  // ROUND OF 32 — 16 matches (M73–M88), per Article 12.6 of FWC2026 Regulations.
+  // "Best 3rd" slots are resolved via the 495-combination Annexe C after group stage.
+  const r32: { home: string; away: string }[] = [
+    { home: "Runner-up A", away: "Runner-up B" }, // M73
+    { home: "Winner E", away: "Best 3rd (ABCDF)" }, // M74
+    { home: "Winner F", away: "Runner-up C" }, // M75
+    { home: "Winner C", away: "Runner-up F" }, // M76
+    { home: "Winner I", away: "Best 3rd (CDFGH)" }, // M77
+    { home: "Runner-up E", away: "Runner-up I" }, // M78
+    { home: "Winner A", away: "Best 3rd (CEFHI)" }, // M79
+    { home: "Winner L", away: "Best 3rd (EHIJK)" }, // M80
+    { home: "Winner D", away: "Best 3rd (BEFIJ)" }, // M81
+    { home: "Winner G", away: "Best 3rd (AEHIJ)" }, // M82
+    { home: "Runner-up K", away: "Runner-up L" }, // M83
+    { home: "Winner H", away: "Runner-up J" }, // M84
+    { home: "Winner B", away: "Best 3rd (EFGIJ)" }, // M85
+    { home: "Winner J", away: "Runner-up H" }, // M86
+    { home: "Winner K", away: "Best 3rd (DEIJL)" }, // M87
+    { home: "Runner-up D", away: "Runner-up G" }, // M88
   ];
 
-  ro16Teams.forEach((match, idx) => {
-    matches.push({
-      homeTeam: match.home,
-      awayTeam: match.away,
-      kickoffTime: new Date(knockoutDate.getTime() + idx * 6 * 60 * 60 * 1000),
-      stage: 'ROUND_OF_16',
-    });
-  });
-
-  // Quarterfinals: 8 matches
-  let qfDate = new Date('2026-07-10T12:00:00Z');
-  for (let i = 0; i < 8; i++) {
-    matches.push({
-      homeTeam: `QF Winner ${i * 2 + 1}`,
-      awayTeam: `QF Winner ${i * 2 + 2}`,
-      kickoffTime: new Date(qfDate.getTime() + i * 8 * 60 * 60 * 1000),
-      stage: 'QF',
-    });
+  let r32Date = new Date("2026-07-01T12:00:00Z");
+  for (const m of r32) {
+    matches.push({ ...m, kickoffTime: new Date(r32Date), stage: "LAST_32" });
+    r32Date = new Date(r32Date.getTime() + 6 * 60 * 60 * 1000);
   }
 
-  // Semifinals: 4 matches
-  let sfDate = new Date('2026-07-18T12:00:00Z');
-  for (let i = 0; i < 4; i++) {
+  // ROUND OF 16 — 8 matches (M89–M96), per Article 12.7
+  const r16: { home: string; away: string }[] = [
+    { home: "Winner M74", away: "Winner M77" }, // M89
+    { home: "Winner M73", away: "Winner M75" }, // M90
+    { home: "Winner M76", away: "Winner M78" }, // M91
+    { home: "Winner M79", away: "Winner M80" }, // M92
+    { home: "Winner M83", away: "Winner M84" }, // M93
+    { home: "Winner M81", away: "Winner M82" }, // M94
+    { home: "Winner M86", away: "Winner M88" }, // M95
+    { home: "Winner M85", away: "Winner M87" }, // M96
+  ];
+
+  let r16Date = new Date("2026-07-08T12:00:00Z");
+  for (const m of r16) {
     matches.push({
-      homeTeam: `SF Winner ${i * 2 + 1}`,
-      awayTeam: `SF Winner ${i * 2 + 2}`,
-      kickoffTime: new Date(sfDate.getTime() + i * 12 * 60 * 60 * 1000),
-      stage: 'SF',
+      ...m,
+      kickoffTime: new Date(r16Date),
+      stage: "ROUND_OF_16",
     });
+    r16Date = new Date(r16Date.getTime() + 8 * 60 * 60 * 1000);
   }
 
-  // Third-place playoff: 1 match
+  // QUARTER-FINALS — 4 matches (M97–M100), per Article 12.8
+  const qf: { home: string; away: string }[] = [
+    { home: "Winner M89", away: "Winner M90" }, // M97
+    { home: "Winner M93", away: "Winner M94" }, // M98
+    { home: "Winner M91", away: "Winner M92" }, // M99
+    { home: "Winner M95", away: "Winner M96" }, // M100
+  ];
+
+  let qfDate = new Date("2026-07-15T12:00:00Z");
+  for (const m of qf) {
+    matches.push({ ...m, kickoffTime: new Date(qfDate), stage: "QF" });
+    qfDate = new Date(qfDate.getTime() + 12 * 60 * 60 * 1000);
+  }
+
+  // SEMI-FINALS — 2 matches (M101–M102), per Article 12.9
   matches.push({
-    homeTeam: 'SF Loser 1',
-    awayTeam: 'SF Loser 2',
-    kickoffTime: new Date('2026-07-26T12:00:00Z'),
-    stage: 'SF', // This is technically a playoff, but we'll classify as SF for now
+    homeTeam: "Winner M97",
+    awayTeam: "Winner M98",
+    kickoffTime: new Date("2026-07-19T15:00:00Z"),
+    stage: "SF",
+  });
+  matches.push({
+    homeTeam: "Winner M99",
+    awayTeam: "Winner M100",
+    kickoffTime: new Date("2026-07-20T15:00:00Z"),
+    stage: "SF",
   });
 
-  // Final: 1 match
+  // THIRD-PLACE PLAY-OFF — 1 match (M103), per Article 12.10
   matches.push({
-    homeTeam: 'Final Team A',
-    awayTeam: 'Final Team B',
-    kickoffTime: new Date('2026-07-28T16:00:00Z'),
-    stage: 'FINAL',
+    homeTeam: "Runner-up SF1",
+    awayTeam: "Runner-up SF2",
+    kickoffTime: new Date("2026-07-25T15:00:00Z"),
+    stage: "SF",
+  });
+
+  // FINAL — 1 match (M104), per Article 12.11
+  matches.push({
+    homeTeam: "Winner SF1",
+    awayTeam: "Winner SF2",
+    kickoffTime: new Date("2026-07-26T18:00:00Z"),
+    stage: "FINAL",
   });
 
   return matches;
 };
 
+async function seedFromApi(): Promise<boolean> {
+  try {
+    console.log("Fetching WC 2026 matches from football-data.org...");
+    const apiMatches = await fetchWCMatches();
+    console.log(`Fetched ${apiMatches.length} matches from API`);
+
+    for (const m of apiMatches) {
+      await prisma.match.upsert({
+        where: { footballDataId: m.id },
+        create: {
+          footballDataId: m.id,
+          homeTeam: m.homeTeam?.name ?? "TBD",
+          awayTeam: m.awayTeam?.name ?? "TBD",
+          kickoffTime: new Date(m.utcDate),
+          stage: mapStage(m.stage),
+          group: m.group ? m.group.replace("GROUP_", "") : null,
+          status: mapStatus(m.status),
+          actualOutcome: getOutcome(m),
+        },
+        update: {
+          homeTeam: m.homeTeam?.name ?? "TBD",
+          awayTeam: m.awayTeam?.name ?? "TBD",
+          kickoffTime: new Date(m.utcDate),
+          stage: mapStage(m.stage),
+          group: m.group ? m.group.replace("GROUP_", "") : null,
+          status: mapStatus(m.status),
+          actualOutcome: getOutcome(m),
+        },
+      });
+    }
+    return true;
+  } catch (err) {
+    console.warn("API seed failed, falling back to static data:", err);
+    return false;
+  }
+}
+
 async function seed() {
   try {
-    console.log('🌱 Starting World Cup 2026 data seeding...');
+    console.log("🌱 Starting World Cup 2026 data seeding...");
 
-    // Check if matches already exist
-    const existingMatches = await prisma.match.count();
-    
-    if (existingMatches > 0) {
-      console.log(`✓ Matches already exist (${existingMatches}). Skipping seed.`);
-      return;
+    const apiOk = await seedFromApi();
+
+    if (!apiOk) {
+      const existingMatches = await prisma.match.count();
+      if (existingMatches > 0) {
+        console.log(
+          `✓ Matches already exist (${existingMatches}). Skipping static seed.`,
+        );
+      } else {
+        const matchesData = generateMatches();
+        const created = await prisma.match.createMany({ data: matchesData });
+        console.log(`✓ Created ${created.count} matches from static data`);
+      }
     }
 
-    const matchesData = generateMatches();
-    console.log(`📊 Generated ${matchesData.length} matches for World Cup 2026`);
-
-    // Insert all matches
-    const created = await prisma.match.createMany({
-      data: matchesData,
-    });
-
-    console.log(`✓ Successfully created ${created.count} matches`);
-    console.log(`  - Group stage: ${matchesData.filter(m => m.stage === 'GROUP').length} matches`);
-    console.log(`  - Round of 16: ${matchesData.filter(m => m.stage === 'ROUND_OF_16').length} matches`);
-    console.log(`  - Quarterfinals: ${matchesData.filter(m => m.stage === 'QF').length} matches`);
-    console.log(`  - Semifinals: ${matchesData.filter(m => m.stage === 'SF').length} matches`);
-    console.log(`  - Final: ${matchesData.filter(m => m.stage === 'FINAL').length} match`);
-    
-    console.log('✅ Seeding completed successfully!');
+    const total = await prisma.match.count();
+    console.log(`✅ Seeding done — ${total} matches in DB`);
   } catch (error) {
-    console.error('❌ Seeding failed:', error);
+    console.error("❌ Seeding failed:", error);
     process.exit(1);
   } finally {
     await prisma.$disconnect();

@@ -1,0 +1,995 @@
+openapi: 3.1.0
+info:
+  title: World Cup Prediction API
+  description: |
+    REST API for the World Cup Prediction app. Users authenticate via Google OAuth,
+    make match outcome predictions, join leagues, and compete on leaderboards.
+
+    ## Authentication
+    Most endpoints require session-based authentication obtained via the Google OAuth flow.
+    Unauthenticated requests to protected endpoints return `401`. The admin scoring endpoint
+    uses a separate `X-API-Key` header.
+
+    ## Scoring
+    A prediction is worth **1 point** if the predicted outcome matches the actual outcome,
+    0 otherwise. Points are tallied automatically every 5 minutes after matches complete.
+    `DRAW` predictions are only valid for `GROUP` stage matches.
+
+    ## Prediction Locking
+    Predictions can only be created or submitted while `match.status = UPCOMING` and
+    `now() < match.kickoffTime`. After kickoff the prediction window closes (410 Gone).
+  version: 1.0.0
+
+servers:
+  - url: http://localhost:3000
+    description: Local development
+
+tags:
+  - name: auth
+    description: Google OAuth login/logout and current-user lookup
+  - name: matches
+    description: Read match schedules and results
+  - name: predictions
+    description: Create, update, and submit match predictions
+  - name: leagues
+    description: Create leagues, join via invite code, view leaderboard
+  - name: admin
+    description: Internal endpoints protected by API key
+  - name: health
+    description: Service liveness
+
+# ---------------------------------------------------------------------------
+# Reusable schemas
+# ---------------------------------------------------------------------------
+components:
+  securitySchemes:
+    sessionCookie:
+      type: apiKey
+      in: cookie
+      name: connect.sid
+      description: Session cookie set after completing the Google OAuth flow.
+    apiKey:
+      type: apiKey
+      in: header
+      name: X-API-Key
+      description: Server-to-server key for admin/cron endpoints (`CRON_API_KEY` env var).
+
+  schemas:
+    # ---- Enums ---------------------------------------------------------------
+    MatchStatus:
+      type: string
+      enum: [UPCOMING, LIVE, COMPLETED]
+      description: Lifecycle state of a match.
+
+    Stage:
+      type: string
+      enum: [GROUP, LAST_32, ROUND_OF_16, QF, SF, FINAL]
+      description: |
+        Tournament stage. FWC2026 format: Group Stage → Round of 32 → Round of 16 →
+        Quarterfinals → Semifinals → Final. The Semifinals bucket also includes the
+        third-place play-off match. Only GROUP stage allows DRAW predictions.
+
+    Outcome:
+      type: string
+      enum: [HOME_WIN, AWAY_WIN, DRAW]
+      description: Possible match outcomes. DRAW is only valid in GROUP stage.
+
+    # ---- Core objects --------------------------------------------------------
+    User:
+      type: object
+      required: [id, email, username, totalPoints]
+      properties:
+        id:
+          type: string
+          description: CUID
+        email:
+          type: string
+          format: email
+        username:
+          type: string
+        avatarUrl:
+          type: string
+          format: uri
+          nullable: true
+        totalPoints:
+          type: integer
+          minimum: 0
+
+    Match:
+      type: object
+      required: [id, homeTeam, awayTeam, kickoffTime, stage, status, createdAt, updatedAt]
+      properties:
+        id:
+          type: string
+        homeTeam:
+          type: string
+        awayTeam:
+          type: string
+        kickoffTime:
+          type: string
+          format: date-time
+        stage:
+          $ref: '#/components/schemas/Stage'
+        group:
+          type: string
+          nullable: true
+          description: Group letter (A–L) for GROUP stage matches; null for knockout matches.
+          example: A
+        status:
+          $ref: '#/components/schemas/MatchStatus'
+        actualOutcome:
+          $ref: '#/components/schemas/Outcome'
+          nullable: true
+          description: Null until the match is COMPLETED and the result is recorded.
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+
+    MatchWithPrediction:
+      allOf:
+        - $ref: '#/components/schemas/Match'
+        - type: object
+          properties:
+            predictions:
+              type: array
+              description: Included only when the request is authenticated.
+              items:
+                type: object
+                properties:
+                  id:
+                    type: string
+                  predictedOutcome:
+                    $ref: '#/components/schemas/Outcome'
+                  isSubmitted:
+                    type: boolean
+                  isScored:
+                    type: boolean
+                  pointsAwarded:
+                    type: integer
+
+    MatchPrediction:
+      type: object
+      required: [id, userId, matchId, predictedOutcome, isSubmitted, isScored, pointsAwarded, createdAt, updatedAt]
+      properties:
+        id:
+          type: string
+        userId:
+          type: string
+        matchId:
+          type: string
+        predictedOutcome:
+          $ref: '#/components/schemas/Outcome'
+        isSubmitted:
+          type: boolean
+          description: True once the user has explicitly locked in the prediction.
+        isScored:
+          type: boolean
+        scoredAt:
+          type: string
+          format: date-time
+          nullable: true
+        pointsAwarded:
+          type: integer
+          minimum: 0
+          maximum: 1
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+
+    LeagueMember:
+      type: object
+      properties:
+        id:
+          type: string
+        userId:
+          type: string
+        leagueId:
+          type: string
+        user:
+          type: object
+          properties:
+            id:
+              type: string
+            username:
+              type: string
+            totalPoints:
+              type: integer
+            avatarUrl:
+              type: string
+              format: uri
+              nullable: true
+        joinedAt:
+          type: string
+          format: date-time
+
+    League:
+      type: object
+      required: [id, name, inviteCode, members, createdAt, updatedAt]
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        inviteCode:
+          type: string
+          minLength: 8
+          maxLength: 8
+          description: 8-character alphanumeric code used to invite other users.
+        members:
+          type: array
+          items:
+            $ref: '#/components/schemas/LeagueMember'
+        _count:
+          type: object
+          properties:
+            members:
+              type: integer
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+
+    LeaderboardEntry:
+      type: object
+      required: [rank, userId, username, totalPoints]
+      properties:
+        rank:
+          type: integer
+          minimum: 1
+          description: Dense rank — tied users share the same rank.
+        userId:
+          type: string
+        username:
+          type: string
+        avatarUrl:
+          type: string
+          format: uri
+          nullable: true
+        totalPoints:
+          type: integer
+          minimum: 0
+
+    Pagination:
+      type: object
+      required: [page, limit, total, hasMore]
+      properties:
+        page:
+          type: integer
+          minimum: 0
+        limit:
+          type: integer
+          minimum: 1
+          maximum: 50
+        total:
+          type: integer
+        hasMore:
+          type: boolean
+
+    PredictionStats:
+      type: object
+      required: [total, submitted, scored, correct]
+      properties:
+        total:
+          type: integer
+          minimum: 0
+          description: Total number of predictions created (saved or submitted).
+        submitted:
+          type: integer
+          minimum: 0
+          description: Number of predictions explicitly submitted (locked in).
+        scored:
+          type: integer
+          minimum: 0
+          description: Number of predictions that have been scored after match completion.
+        correct:
+          type: integer
+          minimum: 0
+          description: Number of scored predictions that were correct (pointsAwarded > 0).
+
+    HomeDashboard:
+      type: object
+      required: [upcomingMatches, predictionStats]
+      properties:
+        upcomingMatches:
+          type: array
+          description: Next up-to-8 UPCOMING matches with the user's prediction (if any).
+          items:
+            allOf:
+              - $ref: '#/components/schemas/Match'
+              - type: object
+                properties:
+                  predictions:
+                    type: array
+                    maxItems: 1
+                    items:
+                      type: object
+                      required: [id, predictedOutcome, isSubmitted, updatedAt]
+                      properties:
+                        id:
+                          type: string
+                        predictedOutcome:
+                          $ref: '#/components/schemas/Outcome'
+                        isSubmitted:
+                          type: boolean
+                        updatedAt:
+                          type: string
+                          format: date-time
+        predictionStats:
+          $ref: '#/components/schemas/PredictionStats'
+
+    # ---- Response envelopes --------------------------------------------------
+    SuccessEnvelope:
+      type: object
+      required: [success]
+      properties:
+        success:
+          type: boolean
+          enum: [true]
+
+    ErrorEnvelope:
+      type: object
+      required: [success, error]
+      properties:
+        success:
+          type: boolean
+          enum: [false]
+        error:
+          type: string
+
+  # ---- Reusable responses ----------------------------------------------------
+  responses:
+    Unauthorized:
+      description: Not authenticated.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorEnvelope'
+          example:
+            success: false
+            error: Authentication required
+
+    Forbidden:
+      description: Authenticated but not authorised for this resource.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorEnvelope'
+
+    NotFound:
+      description: Resource not found.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorEnvelope'
+
+    Conflict:
+      description: Resource already exists or constraint violated.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorEnvelope'
+
+    Gone:
+      description: Prediction window has closed (after kickoff).
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorEnvelope'
+
+# ---------------------------------------------------------------------------
+# Paths
+# ---------------------------------------------------------------------------
+paths:
+
+  # ---- Health ---------------------------------------------------------------
+  /health:
+    get:
+      tags: [health]
+      summary: Service liveness check
+      operationId: getHealth
+      responses:
+        '200':
+          description: Service is up.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    enum: [ok]
+                  timestamp:
+                    type: string
+                    format: date-time
+              example:
+                status: ok
+                timestamp: '2026-06-07T12:00:00.000Z'
+
+  # ---- Auth -----------------------------------------------------------------
+  /auth/google:
+    get:
+      tags: [auth]
+      summary: Initiate Google OAuth flow
+      operationId: googleOAuthStart
+      description: Redirects the browser to Google's consent screen. Not callable via XHR — open in a browser tab or redirect.
+      responses:
+        '302':
+          description: Redirect to Google OAuth consent page.
+
+  /auth/google/callback:
+    get:
+      tags: [auth]
+      summary: Google OAuth callback
+      operationId: googleOAuthCallback
+      description: |
+        Google redirects here after the user grants consent. On success the
+        session cookie is set and the browser is redirected to
+        `{FRONTEND_URL}/auth/callback?success=true`. On failure it redirects to
+        `{FRONTEND_URL}/auth/error`.
+      parameters:
+        - name: code
+          in: query
+          required: true
+          schema:
+            type: string
+        - name: state
+          in: query
+          schema:
+            type: string
+      responses:
+        '302':
+          description: Redirect to frontend on success or error.
+
+  /auth/me:
+    get:
+      tags: [auth]
+      summary: Get current user profile
+      operationId: getMe
+      security:
+        - sessionCookie: []
+      responses:
+        '200':
+          description: Authenticated user's profile.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/SuccessEnvelope'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/User'
+              example:
+                success: true
+                data:
+                  id: clxyz123
+                  email: alice@example.com
+                  username: alice42
+                  avatarUrl: https://lh3.googleusercontent.com/photo.jpg
+                  totalPoints: 7
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /auth/logout:
+    post:
+      tags: [auth]
+      summary: Log out
+      operationId: logout
+      security:
+        - sessionCookie: []
+      description: Destroys the server-side session and clears the `connect.sid` cookie.
+      responses:
+        '200':
+          description: Successfully logged out.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/SuccessEnvelope'
+                  - type: object
+                    properties:
+                      message:
+                        type: string
+              example:
+                success: true
+                message: Logged out successfully
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  # ---- Home dashboard -------------------------------------------------------
+  /home:
+    get:
+      tags: [auth]
+      summary: Get home dashboard data
+      operationId: getHomeDashboard
+      security:
+        - sessionCookie: []
+      description: |
+        Returns the next up-to-8 UPCOMING matches (with the authenticated user's prediction
+        if one exists) and the user's aggregate prediction stats. Designed to power the
+        post-login home page dashboard.
+      responses:
+        '200':
+          description: Dashboard data for the authenticated user.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/SuccessEnvelope'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/HomeDashboard'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  # ---- Matches --------------------------------------------------------------
+  /matches:
+    get:
+      tags: [matches]
+      summary: List matches by stage
+      operationId: listMatches
+      description: |
+        Returns all matches for the given tournament stage. If the request is
+        authenticated the response includes an inline `predictions` array with
+        the calling user's prediction for each match (empty array if none).
+        For GROUP stage, matches also include a `group` field (A–L).
+      parameters:
+        - name: stage
+          in: query
+          required: true
+          schema:
+            $ref: '#/components/schemas/Stage'
+      security:
+        - {}           # public
+        - sessionCookie: []
+      responses:
+        '200':
+          description: Array of matches, optionally annotated with the user's predictions.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/SuccessEnvelope'
+                  - type: object
+                    properties:
+                      data:
+                        type: array
+                        items:
+                          $ref: '#/components/schemas/MatchWithPrediction'
+        '400':
+          description: Missing or invalid `stage` query parameter.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+
+  /matches/{matchId}:
+    get:
+      tags: [matches]
+      summary: Get a single match
+      operationId: getMatch
+      parameters:
+        - name: matchId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Match details.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/SuccessEnvelope'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/Match'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /matches/{matchId}/predictions:
+    get:
+      tags: [matches, predictions]
+      summary: Get match plus current user's prediction
+      operationId: getMatchWithPrediction
+      security:
+        - sessionCookie: []
+      parameters:
+        - name: matchId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Match details paired with the user's prediction (null if no prediction yet).
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/SuccessEnvelope'
+                  - type: object
+                    properties:
+                      data:
+                        type: object
+                        properties:
+                          match:
+                            $ref: '#/components/schemas/Match'
+                          userPrediction:
+                            $ref: '#/components/schemas/MatchPrediction'
+                            nullable: true
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  # ---- Predictions ----------------------------------------------------------
+  /predictions:
+    post:
+      tags: [predictions]
+      summary: Create or update a prediction
+      operationId: upsertPrediction
+      security:
+        - sessionCookie: []
+      description: |
+        Creates a new prediction or updates an existing draft (unsubmitted)
+        prediction. Rules:
+        - Match must be `UPCOMING` and `kickoffTime` must be in the future.
+        - `DRAW` is only valid for `GROUP` stage matches.
+        - Once a prediction is submitted it cannot be updated via this endpoint.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [matchId, predictedOutcome]
+              properties:
+                matchId:
+                  type: string
+                predictedOutcome:
+                  $ref: '#/components/schemas/Outcome'
+            example:
+              matchId: clmatch001
+              predictedOutcome: HOME_WIN
+      responses:
+        '200':
+          description: Created or updated prediction.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/SuccessEnvelope'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/MatchPrediction'
+        '400':
+          description: Validation error (missing fields, DRAW on knockout stage, etc.).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '410':
+          $ref: '#/components/responses/Gone'
+
+    get:
+      tags: [predictions]
+      summary: Get the current user's prediction for a match
+      operationId: getPrediction
+      security:
+        - sessionCookie: []
+      parameters:
+        - name: matchId
+          in: query
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: The user's prediction, or null if they haven't predicted yet.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/SuccessEnvelope'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/MatchPrediction'
+                        nullable: true
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /predictions/{predictionId}/submit:
+    post:
+      tags: [predictions]
+      summary: Lock in a prediction
+      operationId: submitPrediction
+      security:
+        - sessionCookie: []
+      description: |
+        Submits (locks) a draft prediction. Once submitted the outcome cannot
+        be changed. The same time constraints apply as for creation.
+      parameters:
+        - name: predictionId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Prediction is now submitted.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/SuccessEnvelope'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/MatchPrediction'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '410':
+          $ref: '#/components/responses/Gone'
+
+  # ---- Leagues --------------------------------------------------------------
+  /leagues:
+    post:
+      tags: [leagues]
+      summary: Create a league
+      operationId: createLeague
+      security:
+        - sessionCookie: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name]
+              properties:
+                name:
+                  type: string
+            example:
+              name: The Offside Trap
+      responses:
+        '201':
+          description: Newly created league. The creator is automatically a member.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/SuccessEnvelope'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/League'
+        '400':
+          description: Missing name.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /leagues/join:
+    post:
+      tags: [leagues]
+      summary: Join a league via invite code
+      operationId: joinLeague
+      security:
+        - sessionCookie: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [inviteCode]
+              properties:
+                inviteCode:
+                  type: string
+                  minLength: 8
+                  maxLength: 8
+            example:
+              inviteCode: ABC12345
+      responses:
+        '200':
+          description: Joined the league.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/SuccessEnvelope'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/League'
+        '400':
+          description: Missing invite code.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          description: No league found with that invite code.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '409':
+          $ref: '#/components/responses/Conflict'
+
+  /leagues/{leagueId}:
+    get:
+      tags: [leagues]
+      summary: Get league details
+      operationId: getLeague
+      security:
+        - sessionCookie: []
+      parameters:
+        - name: leagueId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: League with full member list.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/SuccessEnvelope'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/League'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /leagues/{leagueId}/leaderboard:
+    get:
+      tags: [leagues]
+      summary: Get paginated league leaderboard
+      operationId: getLeaderboard
+      security:
+        - sessionCookie: []
+      description: |
+        Returns users ranked by `totalPoints` (descending). Users with the same
+        score share a rank (dense ranking). Results are paginated.
+      parameters:
+        - name: leagueId
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: page
+          in: query
+          schema:
+            type: integer
+            minimum: 0
+            default: 0
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 50
+            default: 50
+      responses:
+        '200':
+          description: Ranked leaderboard with pagination metadata.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/SuccessEnvelope'
+                  - type: object
+                    properties:
+                      data:
+                        type: object
+                        properties:
+                          leaderboard:
+                            type: array
+                            items:
+                              $ref: '#/components/schemas/LeaderboardEntry'
+                          pagination:
+                            $ref: '#/components/schemas/Pagination'
+              example:
+                success: true
+                data:
+                  leaderboard:
+                    - rank: 1
+                      userId: clxyz123
+                      username: alice42
+                      avatarUrl: null
+                      totalPoints: 10
+                    - rank: 2
+                      userId: clxyz456
+                      username: bob99
+                      avatarUrl: null
+                      totalPoints: 8
+                  pagination:
+                    page: 0
+                    limit: 50
+                    total: 2
+                    hasMore: false
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  # ---- Admin ----------------------------------------------------------------
+  /admin/cron/score:
+    post:
+      tags: [admin]
+      summary: Trigger match scoring
+      operationId: triggerScoring
+      security:
+        - apiKey: []
+      description: |
+        Manually triggers the same scoring job that runs automatically every 5
+        minutes. Intended for CI pipelines or manual operations. Scores all
+        unscored predictions for `COMPLETED` matches and updates `user.totalPoints`.
+      responses:
+        '200':
+          description: Scoring run completed.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/SuccessEnvelope'
+                  - type: object
+                    properties:
+                      data:
+                        type: object
+                        required: [scoredCount, usersAffected, pointsAggregated]
+                        properties:
+                          scoredCount:
+                            type: integer
+                            description: Total predictions scored in this run.
+                          usersAffected:
+                            type: integer
+                            description: Distinct users whose points changed.
+                          pointsAggregated:
+                            type: integer
+                            description: Total points awarded across all users.
+              example:
+                success: true
+                data:
+                  scoredCount: 48
+                  usersAffected: 32
+                  pointsAggregated: 35
+        '401':
+          description: Missing or invalid API key.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'

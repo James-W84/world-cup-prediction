@@ -3,8 +3,7 @@ generator client {
 }
 
 datasource db {
-  provider = "postgresql"
-  url      = env("DATABASE_URL")
+  provider = "sqlite"
 }
 
 // Enums
@@ -16,6 +15,7 @@ enum MatchStatus {
 
 enum Stage {
   GROUP
+  LAST_32
   ROUND_OF_16
   QF
   SF
@@ -30,16 +30,17 @@ enum Outcome {
 
 // Models
 model User {
-  id            String    @id @default(cuid())
-  email         String    @unique
-  username      String    @unique
-  avatarUrl     String?
-  totalPoints   Int       @default(0)
-  accounts      Account[]
-  predictions   MatchPrediction[]
-  leagueMembers LeagueMember[]
-  createdAt     DateTime  @default(now())
-  updatedAt     DateTime  @updatedAt
+  id                String             @id @default(cuid())
+  email             String             @unique
+  username          String             @unique
+  avatarUrl         String?
+  totalPoints       Int                @default(0)
+  accounts          Account[]
+  predictions       MatchPrediction[]
+  leagueMembers     LeagueMember[]
+  groupTableScores  GroupTableScore[]
+  createdAt         DateTime           @default(now())
+  updatedAt         DateTime           @updatedAt
 
   @@map("users")
 }
@@ -81,20 +82,34 @@ model LeagueMember {
 }
 
 model Match {
-  id          String    @id @default(cuid())
-  homeTeam    String
-  awayTeam    String
-  kickoffTime DateTime
-  stage       Stage
-  status      MatchStatus @default(UPCOMING)
-  actualOutcome Outcome?
-  predictions MatchPrediction[]
-  createdAt   DateTime  @default(now())
-  updatedAt   DateTime  @updatedAt
+  id             String    @id @default(cuid())
+  footballDataId Int?      @unique
+  homeTeam       String
+  awayTeam       String
+  kickoffTime    DateTime
+  stage          Stage
+  group          String?
+  status         MatchStatus @default(UPCOMING)
+  actualOutcome  Outcome?
+  predictions    MatchPrediction[]
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
 
   @@index([kickoffTime])
   @@index([status])
   @@map("matches")
+}
+
+model GroupTableScore {
+  id            String   @id @default(cuid())
+  userId        String
+  group         String
+  pointsAwarded Int
+  scoredAt      DateTime @default(now())
+  user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, group])
+  @@map("group_table_scores")
 }
 
 model MatchPrediction {

@@ -1,0 +1,8 @@
+# .claudeignore
+
+# Block all environment files
+.env
+.env.*
+*.env
+.env.local
+.env.example

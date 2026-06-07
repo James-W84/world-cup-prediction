@@ -1,36 +1,48 @@
 import { Router } from 'express';
+import passport from 'passport';
 import { authController } from '../controllers/authController';
-import { authMiddleware } from '../middleware/auth';
+import { requireAuth } from '../middleware/auth';
 import { predictionController } from '../controllers/predictionController';
 import { leagueController } from '../controllers/leagueController';
 import { matchController } from '../controllers/matchController';
 import { cronController } from '../controllers/cronController';
+import { homeController } from '../controllers/homeController';
 
 const router = Router();
 
-// Auth routes
-router.post('/auth/register', authController.register);
-router.post('/auth/login', authController.login);
-router.post('/auth/refresh', authController.refresh);
-router.post('/auth/logout', authMiddleware, authController.logout);
+// Auth
+router.get('/auth/google', passport.authenticate('google', { scope: ['profile', 'email'] }));
+router.get(
+  '/auth/google/callback',
+  passport.authenticate('google', {
+    failureRedirect: `${process.env.FRONTEND_URL || 'http://localhost:3001'}/auth/error`,
+  }),
+  authController.googleCallback
+);
+router.get('/auth/me', requireAuth, authController.me);
+router.post('/auth/logout', requireAuth, authController.logout);
 
-// Prediction routes
-router.post('/predictions', authMiddleware, predictionController.createOrUpdate);
-router.get('/predictions', authMiddleware, predictionController.getByMatch);
-router.post('/predictions/:predictionId/submit', authMiddleware, predictionController.submit);
+// Home dashboard
+router.get('/home', requireAuth, homeController.getDashboard);
 
-// League routes
-router.post('/leagues', authMiddleware, leagueController.create);
-router.get('/leagues/:leagueId', authMiddleware, leagueController.getDetails);
-router.get('/leagues/:leagueId/leaderboard', authMiddleware, leagueController.getLeaderboard);
-router.post('/leagues/join', authMiddleware, leagueController.join);
+// Predictions
+router.post('/predictions', requireAuth, predictionController.createOrUpdate);
+router.get('/predictions', requireAuth, predictionController.getByMatch);
+router.post('/predictions/:predictionId/submit', requireAuth, predictionController.submit);
 
-// Match routes
+// Leagues
+router.post('/leagues', requireAuth, leagueController.create);
+router.post('/leagues/join', requireAuth, leagueController.join);
+router.get('/leagues/:leagueId', requireAuth, leagueController.getDetails);
+router.get('/leagues/:leagueId/leaderboard', requireAuth, leagueController.getLeaderboard);
+
+// Matches (public read)
 router.get('/matches', matchController.getByStage);
 router.get('/matches/:matchId', matchController.getById);
-router.get('/matches/:matchId/predictions', authMiddleware, matchController.getAllPredictions);
+router.get('/matches/:matchId/predictions', requireAuth, matchController.getAllPredictions);
 
-// Cron routes (admin)
+// Admin (API key protected)
 router.post('/admin/cron/score', cronController.score);
+router.post('/admin/sync', cronController.sync);
 
 export default router;

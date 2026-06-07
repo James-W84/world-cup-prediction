@@ -1,0 +1,31 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npx tsc *)",
+      "Bash(npx prisma *)",
+      "Bash(npm install *)",
+      "Bash(curl -s http://localhost:51213)",
+      "Bash(npm run *)",
+      "Bash(node *)",
+      "Bash(perl -pi -e s/PrismaBetterSQLite3/PrismaBetterSqlite3/g /Users/jameswu/git/world-cup-prediction/api/src/lib/prisma.ts /Users/jameswu/git/world-cup-prediction/api/prisma/seed.ts)",
+      "Bash(curl -s http://localhost:4000/health)",
+      "Bash(python3 -m json.tool)",
+      "Read(//tmp/**)",
+      "Bash(curl -s \"http://localhost:4000/matches?stage=GROUP\")",
+      "Bash(python3 -c \"import json,sys; d=json.load\\(sys.stdin\\); print\\(f'success={d[\\\\\"success\\\\\"]}, count={len\\(d[\\\\\"data\\\\\"]\\)}'\\)\")",
+      "Bash(curl -s http://localhost:3000)",
+      "Bash(pkill -f \"ts-node-dev\")",
+      "Bash(pkill -f \"next dev\")",
+      "Bash(curl -s 'https://api.balldontlie.io/fifa/worldcup/v1/matches?per_page=2&seasons[]=2026' -H 'Authorization: 96839426-6742-470c-b556-ea4427046174')",
+      "Bash(curl -v 'https://api.balldontlie.io/fifa/worldcup/v1/matches?per_page=2&seasons[]=2026' -H 'Authorization: 96839426-6742-470c-b556-ea4427046174')",
+      "Bash(curl -s https://api.balldontlie.io/fifa/worldcup/v1/matches?per_page=2 -H 'Authorization: Bearer 96839426-6742-470c-b556-ea4427046174')",
+      "Bash(curl -s https://api.balldontlie.io/v1/players?per_page=1 -H 'Authorization: 96839426-6742-470c-b556-ea4427046174')",
+      "Bash(curl -s https://api.balldontlie.io/v1/players?per_page=1 -H 'Authorization: Bearer 96839426-6742-470c-b556-ea4427046174')",
+      "Bash(curl *)",
+      "WebFetch(domain:www.football-data.org)",
+      "WebFetch(domain:docs.football-data.org)",
+      "Bash(python3 -c ' *)",
+      "Bash(npx ts-node *)"
+    ]
+  }
+}

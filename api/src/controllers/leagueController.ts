@@ -1,73 +1,54 @@
-import { Response } from 'express';
-import { PrismaClient } from '@prisma/client';
-import { AuthenticatedRequest } from '../types';
+import { Request, Response } from 'express';
+import { prisma } from '../lib/prisma';
 import { logger } from '../utils/logger';
 import { generateInviteCode } from '../utils/helpers';
 
-const prisma = new PrismaClient();
-
 export const leagueController = {
-  create: async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+  create: async (req: Request, res: Response): Promise<void> => {
     try {
       const { name } = req.body;
-      const userId = req.user?.userId;
+      const userId = req.user?.id;
 
       if (!userId || !name) {
         res.status(400).json({ success: false, error: 'Missing required fields' });
         return;
       }
 
-      // Generate unique invite code
       let inviteCode = generateInviteCode();
-      let existingLeague = await prisma.league.findUnique({ where: { inviteCode } });
-      
-      while (existingLeague) {
+      while (await prisma.league.findUnique({ where: { inviteCode } })) {
         inviteCode = generateInviteCode();
-        existingLeague = await prisma.league.findUnique({ where: { inviteCode } });
       }
 
-      // Create league and auto-add creator as member
       const league = await prisma.league.create({
         data: {
           name,
           inviteCode,
-          members: {
-            create: {
-              userId,
-            },
-          },
+          members: { create: { userId } },
         },
         include: { members: true },
       });
 
       logger.info(`League created: ${league.id}, creator=${userId}`);
-
-      res.status(201).json({
-        success: true,
-        data: league,
-      });
+      res.status(201).json({ success: true, data: league });
     } catch (error) {
       logger.error('Error creating league', error);
       res.status(500).json({ success: false, error: 'Failed to create league' });
     }
   },
 
-  getLeaderboard: async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+  getLeaderboard: async (req: Request, res: Response): Promise<void> => {
     try {
       const { leagueId } = req.params;
       const { page = '0', limit = '50' } = req.query;
-      const userId = req.user?.userId;
+      const userId = req.user?.id;
 
       if (!userId || !leagueId) {
         res.status(400).json({ success: false, error: 'Missing required fields' });
         return;
       }
 
-      // Verify user is league member
       const membership = await prisma.leagueMember.findUnique({
-        where: {
-          userId_leagueId: { userId, leagueId: leagueId as string },
-        },
+        where: { userId_leagueId: { userId, leagueId } },
       });
 
       if (!membership) {
@@ -76,37 +57,35 @@ export const leagueController = {
       }
 
       const pageNum = parseInt(page as string, 10) || 0;
-      const limitNum = parseInt(limit as string, 10) || 50;
+      const limitNum = Math.min(parseInt(limit as string, 10) || 50, 50);
 
-      // Fetch leaderboard: all league members sorted by points DESC, then by id ASC
       const leaderboard = await prisma.leagueMember.findMany({
-        where: { leagueId: leagueId as string },
+        where: { leagueId },
         include: {
-          user: {
-            select: { id: true, username: true, totalPoints: true },
-          },
+          user: { select: { id: true, username: true, totalPoints: true, avatarUrl: true } },
         },
-        orderBy: [
-          { user: { totalPoints: 'desc' } },
-          { user: { id: 'asc' } },
-        ],
+        orderBy: [{ user: { totalPoints: 'desc' } }, { user: { id: 'asc' } }],
         skip: pageNum * limitNum,
         take: limitNum,
       });
 
-      // Add rank to each entry
+      // Dense rank with tie handling
       const skip = pageNum * limitNum;
-      const ranked = leaderboard.map((member: any, index: number) => ({
-        rank: skip + index + 1,
-        username: member.user.username,
-        totalPoints: member.user.totalPoints,
-        userId: member.user.id,
-      }));
-
-      // Get total count for pagination
-      const totalMembers = await prisma.leagueMember.count({
-        where: { leagueId: leagueId as string },
+      let rank = skip + 1;
+      const ranked = leaderboard.map((member: typeof leaderboard[0], index: number) => {
+        if (index > 0 && member.user.totalPoints < leaderboard[index - 1].user.totalPoints) {
+          rank = skip + index + 1;
+        }
+        return {
+          rank,
+          userId: member.user.id,
+          username: member.user.username,
+          avatarUrl: member.user.avatarUrl,
+          totalPoints: member.user.totalPoints,
+        };
       });
+
+      const totalMembers = await prisma.leagueMember.count({ where: { leagueId } });
 
       res.json({
         success: true,
@@ -126,29 +105,24 @@ export const leagueController = {
     }
   },
 
-  join: async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+  join: async (req: Request, res: Response): Promise<void> => {
     try {
       const { inviteCode } = req.body;
-      const userId = req.user?.userId;
+      const userId = req.user?.id;
 
       if (!userId || !inviteCode) {
         res.status(400).json({ success: false, error: 'Missing required fields' });
         return;
       }
 
-      // Find league by invite code
       const league = await prisma.league.findUnique({ where: { inviteCode } });
-
       if (!league) {
         res.status(404).json({ success: false, error: 'League not found' });
         return;
       }
 
-      // Check if already a member
       const existingMember = await prisma.leagueMember.findUnique({
-        where: {
-          userId_leagueId: { userId, leagueId: league.id },
-        },
+        where: { userId_leagueId: { userId, leagueId: league.id } },
       });
 
       if (existingMember) {
@@ -156,41 +130,28 @@ export const leagueController = {
         return;
       }
 
-      // Add user as league member
-      await prisma.leagueMember.create({
-        data: {
-          userId,
-          leagueId: league.id,
-        },
-      });
+      await prisma.leagueMember.create({ data: { userId, leagueId: league.id } });
 
       logger.info(`User joined league: user=${userId}, league=${league.id}`);
-
-      res.json({
-        success: true,
-        data: league,
-      });
+      res.json({ success: true, data: league });
     } catch (error) {
       logger.error('Error joining league', error);
       res.status(500).json({ success: false, error: 'Failed to join league' });
     }
   },
 
-  getDetails: async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+  getDetails: async (req: Request, res: Response): Promise<void> => {
     try {
       const { leagueId } = req.params;
-      const userId = req.user?.userId;
+      const userId = req.user?.id;
 
       if (!userId || !leagueId) {
         res.status(400).json({ success: false, error: 'Missing required fields' });
         return;
       }
 
-      // Verify user is league member
       const membership = await prisma.leagueMember.findUnique({
-        where: {
-          userId_leagueId: { userId, leagueId: leagueId as string },
-        },
+        where: { userId_leagueId: { userId, leagueId } },
       });
 
       if (!membership) {
@@ -198,24 +159,20 @@ export const leagueController = {
         return;
       }
 
-      // Fetch league with members
       const league = await prisma.league.findUnique({
-        where: { id: leagueId as string },
+        where: { id: leagueId },
         include: {
           members: {
             include: {
-              user: {
-                select: { id: true, username: true, totalPoints: true },
-              },
+              user: { select: { id: true, username: true, totalPoints: true, avatarUrl: true } },
             },
+            orderBy: { user: { totalPoints: 'desc' } },
           },
+          _count: { select: { members: true } },
         },
       });
 
-      res.json({
-        success: true,
-        data: league,
-      });
+      res.json({ success: true, data: league });
     } catch (error) {
       logger.error('Error fetching league details', error);
       res.status(500).json({ success: false, error: 'Failed to fetch league details' });

@@ -19,7 +19,3 @@ build/
 coverage/
 .turbo/
 
-/src/generated/prisma
-
-prisma/dev.db
-prisma/dev.db-journal

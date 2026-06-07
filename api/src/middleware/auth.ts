@@ -1,54 +1,35 @@
-import { Response, NextFunction } from 'express';
-import jwt, { SignOptions } from 'jsonwebtoken';
-import type { StringValue } from 'ms';
-import { config } from '../config';
-import { AuthenticatedRequest, TokenPayload } from '../types';
-import { logger } from '../utils/logger';
+import '../types';
+import { Request, Response, NextFunction } from 'express';
+import { prisma } from '../lib/prisma';
 
-export const authMiddleware = (req: AuthenticatedRequest, res: Response, next: NextFunction): void => {
-  try {
-    const authHeader = req.headers.authorization;
+export type AuthRequest = Request;
 
-    if (!authHeader?.startsWith('Bearer ')) {
-      res.status(401).json({ success: false, error: 'No token provided' });
+export const requireAuth = (req: Request, res: Response, next: NextFunction): void => {
+  if (req.isAuthenticated && req.isAuthenticated()) {
+    next();
+    return;
+  }
+  res.status(401).json({ success: false, error: 'Authentication required' });
+};
+
+export const requireLeagueMember = (leagueIdParam: string = 'leagueId') =>
+  async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+    const userId = req.user?.id;
+    const leagueId = req.params[leagueIdParam];
+
+    if (!userId || !leagueId) {
+      res.status(400).json({ success: false, error: 'Missing required fields' });
       return;
     }
 
-    const token = authHeader.substring(7);
-    const decoded = jwt.verify(token, config.jwt.secret) as TokenPayload;
+    const membership = await prisma.leagueMember.findUnique({
+      where: { userId_leagueId: { userId, leagueId } },
+    });
 
-    req.user = decoded;
-    next();
-  } catch (error) {
-    if (error instanceof jwt.TokenExpiredError) {
-      res.status(401).json({ success: false, error: 'Token expired' });
-    } else if (error instanceof jwt.JsonWebTokenError) {
-      res.status(401).json({ success: false, error: 'Invalid token' });
-    } else {
-      logger.error('Auth middleware error', error);
-      res.status(500).json({ success: false, error: 'Authentication error' });
+    if (!membership) {
+      res.status(403).json({ success: false, error: 'Not a member of this league' });
+      return;
     }
-  }
-};
 
-export const generateAccessToken = (userId: string, email: string): string => {
-  const options: SignOptions = {
-    expiresIn: config.jwt.expiry as StringValue,
+    next();
   };
-  return jwt.sign({ userId, email }, config.jwt.secret, options);
-};
-
-export const generateRefreshToken = (userId: string, email: string): string => {
-  const options: SignOptions = {
-    expiresIn: config.jwt.refreshExpiry as StringValue,
-  };
-  return jwt.sign({ userId, email, type: 'refresh' }, config.jwt.secret, options);
-};
-
-export const verifyToken = (token: string): TokenPayload | null => {
-  try {
-    return jwt.verify(token, config.jwt.secret) as TokenPayload;
-  } catch {
-    return null;
-  }
-};
