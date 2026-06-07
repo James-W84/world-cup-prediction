@@ -1,0 +1,117 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// Enums
+enum MatchStatus {
+  UPCOMING
+  LIVE
+  COMPLETED
+}
+
+enum Stage {
+  GROUP
+  ROUND_OF_16
+  QF
+  SF
+  FINAL
+}
+
+enum Outcome {
+  HOME_WIN
+  AWAY_WIN
+  DRAW
+}
+
+// Models
+model User {
+  id            String    @id @default(cuid())
+  email         String    @unique
+  username      String    @unique
+  avatarUrl     String?
+  totalPoints   Int       @default(0)
+  accounts      Account[]
+  predictions   MatchPrediction[]
+  leagueMembers LeagueMember[]
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  @@map("users")
+}
+
+model Account {
+  id                 String  @id @default(cuid())
+  userId             String
+  type               String
+  provider           String
+  providerAccountId  String
+  user               User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  @@unique([provider, providerAccountId])
+  @@map("accounts")
+}
+
+model League {
+  id        String    @id @default(cuid())
+  name      String
+  inviteCode String @unique
+  members   LeagueMember[]
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+
+  @@map("leagues")
+}
+
+model LeagueMember {
+  id        String    @id @default(cuid())
+  userId    String
+  leagueId  String
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  league    League    @relation(fields: [leagueId], references: [id], onDelete: Cascade)
+  joinedAt  DateTime  @default(now())
+
+  @@unique([userId, leagueId])
+  @@index([leagueId])
+  @@map("league_members")
+}
+
+model Match {
+  id          String    @id @default(cuid())
+  homeTeam    String
+  awayTeam    String
+  kickoffTime DateTime
+  stage       Stage
+  status      MatchStatus @default(UPCOMING)
+  actualOutcome Outcome?
+  predictions MatchPrediction[]
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  @@index([kickoffTime])
+  @@index([status])
+  @@map("matches")
+}
+
+model MatchPrediction {
+  id              String    @id @default(cuid())
+  userId          String
+  matchId         String
+  predictedOutcome Outcome
+  isSubmitted     Boolean   @default(false)
+  isScored        Boolean   @default(false)
+  scoredAt        DateTime?
+  pointsAwarded   Int       @default(0)
+  user            User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  match           Match     @relation(fields: [matchId], references: [id], onDelete: Cascade)
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  @@unique([userId, matchId])
+  @@index([userId, matchId])
+  @@map("match_predictions")
+}
