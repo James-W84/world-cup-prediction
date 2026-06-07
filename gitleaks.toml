@@ -1,0 +1,16 @@
+# gitleaks.toml
+
+[allowlist]
+description = "Global allowlist for safe files"
+# Tell gitleaks to completely ignore these paths
+paths = [
+    '''^apps/web/\.env\.example$''',
+    '''^apps/api/\.env\.example$''',
+    '''^package\.json$''',
+    '''^pnpm-lock\.yaml$''' # Or yarn.lock / package-lock.json
+]
+
+# You can also ignore specific secret fingerprints if needed
+stopwords = [
+    "example_secret_do_not_worry"
+]
