@@ -88,6 +88,8 @@ const ROUND_LABELS: Record<string, string> = {
   QF: 'Quarterfinals', SF: 'Semifinals', FINAL: 'Final',
 };
 
+const DEFAULT_KNOCKOUT_ROUND: KnockoutRound = 'LAST_32';
+
 // Which positions in the PREVIOUS round feed each match (by sorted-kickoff index).
 // BRACKET_FEEDERS[round][matchIdx] = [feederIdxInPrevRound, feederIdxInPrevRound]
 const BRACKET_FEEDERS: Partial<Record<KnockoutRound, [number, number][]>> = {
@@ -541,7 +543,7 @@ export default function PredictionsPage() {
     return 'GROUP';
   });
   const [groupSubView, setGroupSubView] = useState<'predictions' | 'standings'>('predictions');
-  const [knockoutRound, setKnockoutRound] = useState<KnockoutRound>('LAST_32');
+  const [knockoutRound, setKnockoutRound] = useState<KnockoutRound>(DEFAULT_KNOCKOUT_ROUND);
 
   const [groupMatches, setGroupMatches] = useState<Match[]>([]);
   const [knockoutByRound, setKnockoutByRound] = useState<Record<string, Match[]>>({});
@@ -556,6 +558,12 @@ export default function PredictionsPage() {
   useEffect(() => {
     if (initialized && !user) router.replace('/');
   }, [initialized, user, router]);
+
+  useEffect(() => {
+    if (topStage === 'KNOCKOUT') {
+      setKnockoutRound(DEFAULT_KNOCKOUT_ROUND);
+    }
+  }, [topStage]);
 
   const loadGroup = useCallback(async () => {
     setLoading(true);
