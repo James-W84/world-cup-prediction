@@ -5,7 +5,8 @@ export function getApiUrl(): string {
 }
 
 export function getGoogleAuthUrl(): string {
-  const url = new URL('/auth/google', getApiUrl());
+  const base = typeof window !== 'undefined' ? window.location.origin : '';
+  const url = new URL(`${getApiUrl()}/auth/google`, base);
 
   if (typeof window !== 'undefined') {
     url.searchParams.set('returnTo', window.location.origin);
