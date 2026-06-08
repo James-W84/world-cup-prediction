@@ -40,18 +40,4 @@ services:
       - key: NEXT_PUBLIC_API_URL
         sync: false          # https://wc2026-api.onrender.com
 
-  # ── Cron: sync matches + score every 5 minutes ─────────────────────────────
-  - type: cron
-    name: wc2026-cron-sync
-    runtime: node
-    rootDir: api
-    buildCommand: echo "no build needed"
-    startCommand: node cron-trigger.js
-    schedule: "*/5 * * * *"
-    plan: free
-    envVars:
-      - key: API_URL
-        sync: false          # https://wc2026-api.onrender.com
-      - key: CRON_API_KEY
-        sync: false          # must match the value generated for wc2026-api
 
