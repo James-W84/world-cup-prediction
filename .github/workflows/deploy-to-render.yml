@@ -29,6 +29,12 @@ jobs:
     if: needs.changes.outputs.api == 'true'
     runs-on: ubuntu-latest
     steps:
+      - name: Validate secret
+        run: |
+          if [ -z "${{ secrets.RENDER_DEPLOY_HOOK_API }}" ]; then
+            echo "::error::RENDER_DEPLOY_HOOK_API secret is not set"
+            exit 1
+          fi
       - name: Trigger Render deploy
         run: curl -fsSL -X POST "${{ secrets.RENDER_DEPLOY_HOOK_API }}"
 
@@ -38,5 +44,11 @@ jobs:
     if: always() && needs.changes.outputs.web == 'true'
     runs-on: ubuntu-latest
     steps:
+      - name: Validate secret
+        run: |
+          if [ -z "${{ secrets.RENDER_DEPLOY_HOOK_WEB }}" ]; then
+            echo "::error::RENDER_DEPLOY_HOOK_WEB secret is not set"
+            exit 1
+          fi
       - name: Trigger Render deploy
         run: curl -fsSL -X POST "${{ secrets.RENDER_DEPLOY_HOOK_WEB }}"
