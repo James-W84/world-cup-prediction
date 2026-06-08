@@ -1,6 +1,7 @@
 'use client';
 import { useEffect, useState } from 'react';
 import { getMatches, Match } from '../../lib/api';
+import { BracketLayout, BRACKET_CARD_W } from '../../components/BracketLayout';
 
 const STAGE_LABELS: Record<string, string> = {
   GROUP: 'Group Stage', LAST_32: 'Round of 32', ROUND_OF_16: 'Round of 16',
@@ -85,13 +86,13 @@ function MatchRow({ match, last }: { match: Match; last: boolean }) {
   );
 }
 
-// ─── Read-only bracket ───────────────────────────────────────────────────────
+// ─── Read-only bracket card ───────────────────────────────────────────────────
 
 function BracketCard({ match }: { match: Match }) {
   const homeWon = match.actualOutcome === 'HOME_WIN';
   const awayWon = match.actualOutcome === 'AWAY_WIN';
   return (
-    <div className="card" style={{ padding: '3px 0', overflow: 'hidden', minWidth: 180 }}>
+    <div className="card" style={{ padding: '3px 0', overflow: 'hidden', width: '100%' }}>
       <div style={{ fontSize: 9, color: 'var(--muted)', padding: '2px 8px 1px', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
         {new Date(match.kickoffTime).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}
         {match.status === 'LIVE' && <span style={{ color: 'var(--success)', marginLeft: 4 }}>● LIVE</span>}
@@ -118,72 +119,13 @@ function BracketCard({ match }: { match: Match }) {
 }
 
 function ReadOnlyBracket({ matchesByRound }: { matchesByRound: Record<string, Match[]> }) {
-  const CARD_H = 64;
-  const UNIT = CARD_H + 28;
-  const CARD_W = 196;
-  const COL_GAP = 24;
-
-  const r32Count = (matchesByRound['LAST_32'] || []).length;
-  const totalUnits = Math.max(r32Count, 1);
-  const totalHeight = totalUnits * UNIT;
-
-  const sfMatches = (matchesByRound['SF'] || []).slice(0, 2);
-  const thirdPlaceMatch = (matchesByRound['SF'] || [])[2];
-
   return (
-    <div>
-      <div style={{ overflowX: 'auto', paddingBottom: 8 }}>
-        <div style={{ display: 'flex', gap: COL_GAP, alignItems: 'flex-start', minWidth: 'max-content', padding: '4px 2px' }}>
-          {KNOCKOUT_ROUNDS.map((round) => {
-            const rawMatches = round === 'SF' ? sfMatches : (matchesByRound[round] || []);
-            const count = rawMatches.length;
-            const slotsPerMatch = count > 0 ? totalUnits / count : totalUnits;
-            const slotH = slotsPerMatch * UNIT;
-            const padY = (slotH - CARD_H) / 2;
-            return (
-              <div key={round} style={{ width: CARD_W, flexShrink: 0 }}>
-                <div style={{
-                  fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em',
-                  color: 'var(--muted)', marginBottom: 8, textAlign: 'center', whiteSpace: 'nowrap',
-                }}>
-                  {STAGE_LABELS[round]}
-                </div>
-                <div style={{ height: totalHeight, display: 'flex', flexDirection: 'column' }}>
-                  {count === 0 ? (
-                    <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                      <span style={{ fontSize: 11, color: 'var(--muted)' }}>TBD</span>
-                    </div>
-                  ) : (
-                    rawMatches.map((match) => (
-                      <div key={match.id} style={{
-                        height: slotH, display: 'flex', alignItems: 'center',
-                        paddingTop: padY, paddingBottom: padY, boxSizing: 'border-box',
-                      }}>
-                        <BracketCard match={match} />
-                      </div>
-                    ))
-                  )}
-                </div>
-              </div>
-            );
-          })}
-        </div>
-      </div>
-      {thirdPlaceMatch && (
-        <div style={{ marginTop: 24 }}>
-          <div style={{
-            display: 'flex', alignItems: 'center', gap: 10, marginBottom: 10,
-            color: 'var(--muted)', fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em',
-          }}>
-            <span>3rd Place Play-off</span>
-            <div style={{ flex: 1, height: 1, background: 'var(--border)' }} />
-          </div>
-          <div style={{ maxWidth: 300 }}>
-            <BracketCard match={thirdPlaceMatch} />
-          </div>
-        </div>
-      )}
-    </div>
+    <BracketLayout<Match>
+      rounds={KNOCKOUT_ROUNDS}
+      roundLabels={STAGE_LABELS}
+      matchesByRound={matchesByRound}
+      renderCard={(match) => <BracketCard match={match} />}
+    />
   );
 }
 

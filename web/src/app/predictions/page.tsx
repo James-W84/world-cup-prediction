@@ -4,6 +4,7 @@ import { useRouter } from 'next/navigation';
 import { useAuth } from '../../store/auth';
 import { usePredictions } from '../../store/predictions';
 import { getMatches, savePrediction, submitPrediction, Match, MatchPrediction } from '../../lib/api';
+import { BracketLayout } from '../../components/BracketLayout';
 
 // ─── helpers ────────────────────────────────────────────────────────────────
 
@@ -411,87 +412,38 @@ function KnockoutBracket({
   activeRound: KnockoutRound;
   onPredict: (matchId: string, outcome: 'HOME_WIN' | 'AWAY_WIN') => void;
 }) {
-  const CARD_H = 64;
-  const UNIT = CARD_H + 28;
-  const CARD_W = 196;
-  const COL_GAP = 20;
   const scrollRef = useRef<HTMLDivElement>(null);
-  const colRefs = useRef<Record<string, HTMLDivElement | null>>({});
+  const colRefs   = useRef<Record<string, HTMLDivElement | null>>({});
 
-  // Scroll to the active round column when it changes
   useEffect(() => {
     const col = colRefs.current[activeRound];
     if (col && scrollRef.current) {
-      const container = scrollRef.current;
-      const left = col.offsetLeft - 16;
-      container.scrollTo({ left, behavior: 'smooth' });
+      scrollRef.current.scrollTo({ left: col.offsetLeft - 16, behavior: 'smooth' });
     }
   }, [activeRound]);
 
-  const r32Count = (matchesByRound['LAST_32'] || []).length;
-  const totalUnits = Math.max(r32Count, 1);
-  const totalHeight = totalUnits * UNIT;
-
   return (
-    <div ref={scrollRef} style={{ overflowX: 'auto', paddingBottom: 16 }}>
-      <div style={{ display: 'flex', gap: COL_GAP, alignItems: 'flex-start', minWidth: 'max-content', padding: '4px 2px' }}>
-        {KNOCKOUT_ROUNDS.map((round) => {
-          const roundMatches = matchesByRound[round] || [];
-          const count = roundMatches.length;
-          const slotsPerMatch = count > 0 ? totalUnits / count : totalUnits;
-          const slotHeight = slotsPerMatch * UNIT;
-          const padY = (slotHeight - CARD_H) / 2;
-          const isActive = round === activeRound;
-
-          return (
-            <div
-              key={round}
-              ref={(el) => { colRefs.current[round] = el; }}
-              style={{ width: CARD_W, flexShrink: 0 }}
-            >
-              <div style={{
-                fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em',
-                color: isActive ? 'var(--accent)' : 'var(--muted)',
-                marginBottom: 8, textAlign: 'center', whiteSpace: 'nowrap',
-                borderBottom: isActive ? '2px solid var(--accent)' : '2px solid transparent',
-                paddingBottom: 4,
-              }}>
-                {ROUND_LABELS[round]}
-              </div>
-              <div style={{ height: totalHeight, display: 'flex', flexDirection: 'column' }}>
-                {count === 0 ? (
-                  <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                    <span style={{ fontSize: 11, color: 'var(--muted)' }}>TBD</span>
-                  </div>
-                ) : (
-                  roundMatches.map((match, origIdx) => (
-                    <div
-                      key={match.id}
-                      style={{
-                        height: slotHeight, display: 'flex', alignItems: 'center',
-                        paddingTop: padY, paddingBottom: padY, boxSizing: 'border-box',
-                      }}
-                    >
-                      <BracketMatchCard
-                        match={match}
-                        db={dbPredictions[match.id]}
-                        locked={locked}
-                        isSaving={saving[match.id] || false}
-                        matchOrigIdx={origIdx}
-                        round={round}
-                        matchesByRound={matchesByRound}
-                        dbPredictions={dbPredictions}
-                        onPredict={onPredict}
-                      />
-                    </div>
-                  ))
-                )}
-              </div>
-            </div>
-          );
-        })}
-      </div>
-    </div>
+    <BracketLayout<Match>
+      rounds={KNOCKOUT_ROUNDS}
+      roundLabels={ROUND_LABELS}
+      matchesByRound={matchesByRound}
+      activeRound={activeRound}
+      scrollRef={scrollRef}
+      colRefs={colRefs}
+      renderCard={(match, round, origIdx) => (
+        <BracketMatchCard
+          match={match}
+          db={dbPredictions[match.id]}
+          locked={locked}
+          isSaving={saving[match.id] || false}
+          matchOrigIdx={origIdx}
+          round={round as KnockoutRound}
+          matchesByRound={matchesByRound}
+          dbPredictions={dbPredictions}
+          onPredict={onPredict}
+        />
+      )}
+    />
   );
 }
 
