@@ -1,6 +1,6 @@
 # GitHub Secrets for Render Deploys
 
-Add these secrets in **GitHub → Settings → Secrets and variables → Actions**:
+Add these secrets in **GitHub → Settings → Environments → deployment → Environment secrets**:
 
 | Secret | Where to find it |
 |--------|-----------------|

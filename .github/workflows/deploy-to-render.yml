@@ -28,6 +28,7 @@ jobs:
     needs: changes
     if: needs.changes.outputs.api == 'true'
     runs-on: ubuntu-latest
+    environment: deployment
     steps:
       - name: Validate secret
         run: |
@@ -43,6 +44,7 @@ jobs:
     needs: [changes, deploy-api]
     if: always() && needs.changes.outputs.web == 'true'
     runs-on: ubuntu-latest
+    environment: deployment
     steps:
       - name: Validate secret
         run: |
