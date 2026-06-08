@@ -46,9 +46,7 @@ export const config = {
     maxAge: 30 * 24 * 60 * 60 * 1000, // 30 days
     cookie: {
       secure: parseBoolean(process.env.SESSION_COOKIE_SECURE, production),
-      sameSite: parseSameSite(
-        process.env.SESSION_COOKIE_SAME_SITE || (production ? "none" : "lax"),
-      ),
+      sameSite: parseSameSite(process.env.SESSION_COOKIE_SAME_SITE || "lax"),
     },
   },
   google: {
