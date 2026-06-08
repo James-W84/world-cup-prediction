@@ -17,6 +17,25 @@ jobs:
       - name: Install jq
         run: sudo apt-get update && sudo apt-get install -y jq
 
+      - name: Validate Render secrets
+        env:
+          RENDER_API_KEY: ${{ secrets.RENDER_API_KEY }}
+          RENDER_SERVICE_ID_WEB: ${{ secrets.RENDER_SERVICE_ID_WEB }}
+          RENDER_SERVICE_ID_API: ${{ secrets.RENDER_SERVICE_ID_API }}
+        run: |
+          if [ -z "$RENDER_API_KEY" ]; then
+            echo "Missing GitHub secret: RENDER_API_KEY" >&2
+            exit 1
+          fi
+          if [ -z "$RENDER_SERVICE_ID_WEB" ]; then
+            echo "Missing GitHub secret: RENDER_SERVICE_ID_WEB" >&2
+            exit 1
+          fi
+          if [ -z "$RENDER_SERVICE_ID_API" ]; then
+            echo "Missing GitHub secret: RENDER_SERVICE_ID_API" >&2
+            exit 1
+          fi
+
       - id: create_deploy_web
         name: Trigger Render deploy (web)
         env:

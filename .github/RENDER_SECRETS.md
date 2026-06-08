@@ -4,6 +4,8 @@ Required GitHub repository secrets for the Render deploy workflow
 - `RENDER_SERVICE_ID_WEB`: The Render service ID for the frontend (web) service. Find it on the service's Settings → General page in the Render dashboard (the numeric ID in the URL or API section).
 - `RENDER_SERVICE_ID_API`: The Render service ID for the backend (api) service.
 
+If any of these secrets are missing, the workflow now fails with a clear error message before attempting the deploy.
+
 Optional / notes:
 - You will still need to configure all runtime environment variables (DATABASE_URL, GOOGLE_CLIENT_ID, etc.) in Render's service settings or keep them where they are currently configured in `render.yaml`.
 - The workflow triggers on pushes to the `master` branch. Change the branch in `.github/workflows/deploy-to-render.yml` if you'd like a different trigger.
