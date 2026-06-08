@@ -7,9 +7,8 @@ import {
   HomeDashboard,
   UpcomingMatchWithPrediction,
   StageStats,
+  startGoogleAuth,
 } from '../lib/api';
-
-const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
 
 function ProfileCard({ user }: { user: { username: string; avatarUrl: string | null; totalPoints: number } }) {
   return (
@@ -276,11 +275,9 @@ export default function HomePage() {
       <p style={{ color: 'var(--muted)', marginBottom: 32 }}>
         Predict match outcomes, join leagues, and compete with friends.
       </p>
-      <a href={`${API_URL}/auth/google`}>
-        <button className="btn-primary" style={{ padding: '12px 32px', fontSize: 16 }}>
-          Sign in with Google to start
-        </button>
-      </a>
+      <button className="btn-primary" onClick={startGoogleAuth} style={{ padding: '12px 32px', fontSize: 16 }}>
+        Sign in with Google to start
+      </button>
     </div>
   );
 }

@@ -11,14 +11,12 @@ import { homeController } from '../controllers/homeController';
 const router = Router();
 
 // Auth
-router.get('/auth/google', passport.authenticate('google', { scope: ['profile', 'email'] }));
 router.get(
-  '/auth/google/callback',
-  passport.authenticate('google', {
-    failureRedirect: `${process.env.FRONTEND_URL || 'http://localhost:3001'}/auth/error`,
-  }),
-  authController.googleCallback
+  '/auth/google',
+  authController.captureGoogleReturnTo,
+  passport.authenticate('google', { scope: ['profile', 'email'] })
 );
+router.get('/auth/google/callback', authController.googleCallback);
 router.get('/auth/me', requireAuth, authController.me);
 router.post('/auth/logout', requireAuth, authController.logout);
 

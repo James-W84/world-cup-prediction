@@ -1,7 +1,33 @@
-const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
+const API_PORT = '4000';
+
+export function getApiUrl(): string {
+  const configuredUrl = process.env.NEXT_PUBLIC_API_URL;
+  if (configuredUrl) return configuredUrl.replace(/\/$/, '');
+
+  if (typeof window !== 'undefined') {
+    const { protocol, hostname } = window.location;
+    return `${protocol}//${hostname}:${API_PORT}`;
+  }
+
+  return `http://localhost:${API_PORT}`;
+}
+
+export function getGoogleAuthUrl(): string {
+  const url = new URL('/auth/google', getApiUrl());
+
+  if (typeof window !== 'undefined') {
+    url.searchParams.set('returnTo', window.location.origin);
+  }
+
+  return url.toString();
+}
+
+export function startGoogleAuth(): void {
+  window.location.assign(getGoogleAuthUrl());
+}
 
 async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
-  const res = await fetch(`${API_URL}${path}`, {
+  const res = await fetch(`${getApiUrl()}${path}`, {
     credentials: 'include',
     headers: { 'Content-Type': 'application/json', ...options.headers },
     ...options,
@@ -30,7 +56,7 @@ export const logout = () => api.post('/auth/logout');
 
 // Matches
 export async function getMatches(stage: string): Promise<{ matches: Match[]; knockoutLocked: boolean }> {
-  const res = await fetch(`${API_URL}/matches?stage=${stage}`, { credentials: 'include' });
+  const res = await fetch(`${getApiUrl()}/matches?stage=${stage}`, { credentials: 'include' });
   if (!res.ok) throw new Error(`HTTP ${res.status}`);
   const body = await res.json();
   return { matches: body.data as Match[], knockoutLocked: Boolean(body.knockoutLocked) };
@@ -46,7 +72,7 @@ export const submitPrediction = (predictionId: string) =>
 
 // Home dashboard
 export async function getHomeDashboard(offset = 0): Promise<HomeDashboard> {
-  const res = await fetch(`${API_URL}/home?offset=${offset}`, { credentials: 'include' });
+  const res = await fetch(`${getApiUrl()}/home?offset=${offset}`, { credentials: 'include' });
   if (!res.ok) throw new Error(`HTTP ${res.status}`);
   const body = await res.json();
   return body.data as HomeDashboard;

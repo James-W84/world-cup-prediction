@@ -1,10 +1,59 @@
-import { Request, Response } from 'express';
+import { NextFunction, Request, Response } from 'express';
+import passport from 'passport';
+import { config, isAllowedFrontendOrigin } from '../config';
 import { logger } from '../utils/logger';
 
+function getSafeReturnOrigin(value: unknown): string | null {
+  if (typeof value !== 'string') return null;
+
+  try {
+    const url = new URL(value);
+    return isAllowedFrontendOrigin(url.origin) ? url.origin : null;
+  } catch {
+    return null;
+  }
+}
+
+function consumeReturnOrigin(req: Request): string {
+  const returnTo = req.session.authReturnTo || config.frontendUrl;
+  delete req.session.authReturnTo;
+  return returnTo;
+}
+
+function redirectAfterSessionSave(req: Request, res: Response, url: string): void {
+  req.session.save((err) => {
+    if (err) logger.error('Session save before auth redirect failed', err);
+    res.redirect(url);
+  });
+}
+
 export const authController = {
-  googleCallback: (_req: Request, res: Response): void => {
-    const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:3001';
-    res.redirect(`${frontendUrl}/auth/callback?success=true`);
+  captureGoogleReturnTo: (req: Request, _res: Response, next: NextFunction): void => {
+    const returnOrigin = getSafeReturnOrigin(req.query.returnTo);
+    if (returnOrigin) req.session.authReturnTo = returnOrigin;
+    next();
+  },
+
+  googleCallback: (req: Request, res: Response, next: NextFunction): void => {
+    const frontendUrl = consumeReturnOrigin(req);
+
+    passport.authenticate('google', (err: unknown, user: Express.User | false | null, info: unknown) => {
+      if (err || !user) {
+        logger.error('Google OAuth callback failed', err || info);
+        redirectAfterSessionSave(req, res, `${frontendUrl}/auth/error`);
+        return;
+      }
+
+      req.logIn(user, (loginErr) => {
+        if (loginErr) {
+          logger.error('Google OAuth login failed', loginErr);
+          redirectAfterSessionSave(req, res, `${frontendUrl}/auth/error`);
+          return;
+        }
+
+        redirectAfterSessionSave(req, res, `${frontendUrl}/auth/callback?success=true`);
+      });
+    })(req, res, next);
   },
 
   me: (req: Request, res: Response): void => {
@@ -32,7 +81,11 @@ export const authController = {
         return;
       }
       req.session.destroy(() => {
-        res.clearCookie('connect.sid');
+        res.clearCookie('connect.sid', {
+          httpOnly: true,
+          secure: config.session.cookie.secure,
+          sameSite: config.session.cookie.sameSite,
+        });
         res.json({ success: true, message: 'Logged out successfully' });
       });
     });

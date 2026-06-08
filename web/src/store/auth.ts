@@ -6,7 +6,7 @@ interface AuthState {
   user: User | null;
   loading: boolean;
   initialized: boolean;
-  initialize: () => Promise<void>;
+  initialize: () => Promise<User | null>;
   logout: () => Promise<void>;
 }
 
@@ -20,8 +20,10 @@ export const useAuth = create<AuthState>((set) => ({
     try {
       const user = await getMe();
       set({ user, loading: false, initialized: true });
+      return user;
     } catch {
       set({ user: null, loading: false, initialized: true });
+      return null;
     }
   },
 

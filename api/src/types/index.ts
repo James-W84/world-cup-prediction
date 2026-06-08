@@ -5,6 +5,12 @@ export interface ApiResponse<T> {
   message?: string;
 }
 
+declare module 'express-session' {
+  interface SessionData {
+    authReturnTo?: string;
+  }
+}
+
 // Augment Express so req.user is the Prisma User shape everywhere
 declare global {
   namespace Express {

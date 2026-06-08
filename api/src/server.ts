@@ -5,7 +5,7 @@ import connectPgSimple from "connect-pg-simple";
 import { Pool } from "pg";
 import "./config/passport";
 import passport from "passport";
-import { config } from "./config";
+import { config, isAllowedFrontendOrigin } from "./config";
 import { logger } from "./utils/logger";
 import apiRoutes from "./routes/auth";
 import { scheduleScoringCron } from "./jobs/score-cron";
@@ -18,7 +18,14 @@ if (config.nodeEnv === "production") {
 
 app.use(
   cors({
-    origin: config.frontendUrl,
+    origin: (origin, callback) => {
+      if (!origin || isAllowedFrontendOrigin(origin)) {
+        callback(null, true);
+        return;
+      }
+
+      callback(new Error(`CORS blocked origin: ${origin}`));
+    },
     credentials: true,
   }),
 );
@@ -31,10 +38,10 @@ const sessionOptions: session.SessionOptions = {
   resave: false,
   saveUninitialized: false,
   cookie: {
-    secure: config.nodeEnv === "production",
+    secure: config.session.cookie.secure,
     httpOnly: true,
     maxAge: config.session.maxAge,
-    sameSite: "lax",
+    sameSite: config.session.cookie.sameSite,
   },
 };
 

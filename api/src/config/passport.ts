@@ -10,6 +10,7 @@ passport.use(
       clientID: config.google.clientId,
       clientSecret: config.google.clientSecret,
       callbackURL: config.google.callbackUrl,
+      state: true,
     },
     async (_accessToken, _refreshToken, profile, done) => {
       try {

@@ -13,7 +13,7 @@ function AuthCallback() {
   useEffect(() => {
     const success = params.get('success');
     if (success === 'true') {
-      initialize().then(() => router.replace('/'));
+      initialize().then((user) => router.replace(user ? '/' : '/?error=session'));
     } else {
       router.replace('/?error=auth');
     }

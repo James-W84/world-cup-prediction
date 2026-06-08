@@ -2,8 +2,7 @@
 import { useEffect } from 'react';
 import Link from 'next/link';
 import { useAuth } from '../store/auth';
-
-const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
+import { startGoogleAuth } from '../lib/api';
 
 export function AppShell({ children }: { children: React.ReactNode }) {
   const { user, loading, initialized, initialize, logout } = useAuth();
@@ -31,9 +30,9 @@ export function AppShell({ children }: { children: React.ReactNode }) {
               </>
             ) : (
               !loading && (
-                <a href={`${API_URL}/auth/google`}>
-                  <button className="btn-primary">Sign in with Google</button>
-                </a>
+                <button className="btn-primary" onClick={startGoogleAuth}>
+                  Sign in with Google
+                </button>
               )
             )}
           </div>
