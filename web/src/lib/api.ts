@@ -37,7 +37,7 @@ export async function getMatches(stage: string): Promise<{ matches: Match[]; kno
 }
 
 // Predictions
-export const savePrediction = (data: { matchId: string; predictedOutcome: string }) =>
+export const savePrediction = (data: { matchId: string; predictedOutcome: string; isSubmitted?: boolean }) =>
   api.post<MatchPrediction>('/predictions', data);
 export const getPrediction = (matchId: string) =>
   api.get<MatchPrediction | null>(`/predictions?matchId=${matchId}`);
@@ -45,14 +45,31 @@ export const submitPrediction = (predictionId: string) =>
   api.post<MatchPrediction>(`/predictions/${predictionId}/submit`);
 
 // Home dashboard
-export const getHomeDashboard = () => api.get<HomeDashboard>('/home');
+export async function getHomeDashboard(offset = 0): Promise<HomeDashboard> {
+  const res = await fetch(`${API_URL}/home?offset=${offset}`, { credentials: 'include' });
+  if (!res.ok) throw new Error(`HTTP ${res.status}`);
+  const body = await res.json();
+  return body.data as HomeDashboard;
+}
 
 // Leagues
+export const getMyLeagues = () => api.get<LeagueWithStatus[]>('/leagues');
 export const createLeague = (name: string) => api.post<League>('/leagues', { name });
-export const joinLeague = (inviteCode: string) => api.post<League>('/leagues/join', { inviteCode });
+export const joinLeague = (inviteCode: string) =>
+  api.post<{ league: League; joinStatus: string }>('/leagues/join', { inviteCode });
 export const getLeague = (leagueId: string) => api.get<League>(`/leagues/${leagueId}`);
 export const getLeaderboard = (leagueId: string, page = 0) =>
   api.get<LeaderboardResponse>(`/leagues/${leagueId}/leaderboard?page=${page}&limit=50`);
+export const getJoinRequests = (leagueId: string) =>
+  api.get<JoinRequest[]>(`/leagues/${leagueId}/requests`);
+export const approveRequest = (leagueId: string, requestId: string) =>
+  api.post(`/leagues/${leagueId}/requests/${requestId}/approve`);
+export const denyRequest = (leagueId: string, requestId: string) =>
+  api.post(`/leagues/${leagueId}/requests/${requestId}/deny`);
+export const removeMember = (leagueId: string, memberId: string) =>
+  request(`/leagues/${leagueId}/members/${memberId}`, { method: 'DELETE' });
+export const deleteLeague = (leagueId: string) =>
+  request(`/leagues/${leagueId}`, { method: 'DELETE' });
 
 // Types
 export interface User {
@@ -89,7 +106,28 @@ export interface League {
   id: string;
   name: string;
   inviteCode: string;
+  createdBy?: string;
+  isAdmin?: boolean;
+  pendingRequestCount?: number;
+  joinStatus?: string;
   members?: { user: User }[];
+}
+
+export interface LeagueWithCount extends League {
+  _count: { members: number };
+}
+
+export interface LeagueWithStatus extends LeagueWithCount {
+  joinStatus: 'member' | 'pending';
+}
+
+export interface JoinRequest {
+  id: string;
+  userId: string;
+  leagueId: string;
+  status: 'PENDING' | 'APPROVED' | 'DENIED';
+  createdAt: string;
+  user: { id: string; username: string; avatarUrl: string | null };
 }
 
 export interface LeaderboardEntry {
@@ -116,8 +154,7 @@ export interface UpcomingMatchWithPrediction extends Omit<Match, 'predictions'> 
   predictions: UpcomingMatchPredictionSlim[];
 }
 
-export interface PredictionStats {
-  total: number;
+export interface StageStats {
   submitted: number;
   scored: number;
   correct: number;
@@ -125,5 +162,10 @@ export interface PredictionStats {
 
 export interface HomeDashboard {
   upcomingMatches: UpcomingMatchWithPrediction[];
-  predictionStats: PredictionStats;
+  totalUpcoming: number;
+  pendingByStage: { group: number; knockout: number };
+  predictionStats: {
+    group: StageStats;
+    knockout: StageStats;
+  };
 }

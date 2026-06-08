@@ -1,9 +1,11 @@
 'use client';
-import { useEffect } from 'react';
+import { Suspense, useEffect } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useAuth } from '../../../store/auth';
 
-export default function AuthCallbackPage() {
+export const dynamic = 'force-dynamic';
+
+function AuthCallback() {
   const router = useRouter();
   const params = useSearchParams();
   const { initialize } = useAuth();
@@ -22,5 +24,13 @@ export default function AuthCallbackPage() {
       <div className="spinner" />
       <p style={{ marginTop: 16, color: 'var(--muted)' }}>Signing you in…</p>
     </div>
+  );
+}
+
+export default function AuthCallbackPage() {
+  return (
+    <Suspense fallback={<div className="container" style={{ textAlign: 'center', paddingTop: 80 }}><div className="spinner" /></div>}>
+      <AuthCallback />
+    </Suspense>
   );
 }

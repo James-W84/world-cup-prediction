@@ -28,19 +28,27 @@ enum Outcome {
   DRAW
 }
 
+enum JoinRequestStatus {
+  PENDING
+  APPROVED
+  DENIED
+}
+
 // Models
 model User {
-  id                String             @id @default(cuid())
-  email             String             @unique
-  username          String             @unique
+  id                String              @id @default(cuid())
+  email             String              @unique
+  username          String              @unique
   avatarUrl         String?
-  totalPoints       Int                @default(0)
+  totalPoints       Int                 @default(0)
   accounts          Account[]
   predictions       MatchPrediction[]
   leagueMembers     LeagueMember[]
   groupTableScores  GroupTableScore[]
-  createdAt         DateTime           @default(now())
-  updatedAt         DateTime           @updatedAt
+  createdLeagues    League[]            @relation("LeagueCreator")
+  joinRequests      LeagueJoinRequest[]
+  createdAt         DateTime            @default(now())
+  updatedAt         DateTime            @updatedAt
 
   @@map("users")
 }
@@ -58,12 +66,15 @@ model Account {
 }
 
 model League {
-  id        String    @id @default(cuid())
-  name      String
-  inviteCode String @unique
-  members   LeagueMember[]
-  createdAt DateTime  @default(now())
-  updatedAt DateTime  @updatedAt
+  id           String              @id @default(cuid())
+  name         String
+  inviteCode   String              @unique
+  createdBy    String
+  creator      User                @relation("LeagueCreator", fields: [createdBy], references: [id])
+  members      LeagueMember[]
+  joinRequests LeagueJoinRequest[]
+  createdAt    DateTime            @default(now())
+  updatedAt    DateTime            @updatedAt
 
   @@map("leagues")
 }
@@ -79,6 +90,21 @@ model LeagueMember {
   @@unique([userId, leagueId])
   @@index([leagueId])
   @@map("league_members")
+}
+
+model LeagueJoinRequest {
+  id        String            @id @default(cuid())
+  userId    String
+  leagueId  String
+  status    JoinRequestStatus @default(PENDING)
+  user      User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  league    League            @relation(fields: [leagueId], references: [id], onDelete: Cascade)
+  createdAt DateTime          @default(now())
+  updatedAt DateTime          @updatedAt
+
+  @@unique([userId, leagueId])
+  @@index([leagueId])
+  @@map("league_join_requests")
 }
 
 model Match {

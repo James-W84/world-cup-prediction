@@ -273,14 +273,10 @@ components:
         hasMore:
           type: boolean
 
-    PredictionStats:
+    StageStats:
       type: object
-      required: [total, submitted, scored, correct]
+      required: [submitted, scored, correct]
       properties:
-        total:
-          type: integer
-          minimum: 0
-          description: Total number of predictions created (saved or submitted).
         submitted:
           type: integer
           minimum: 0
@@ -288,7 +284,7 @@ components:
         scored:
           type: integer
           minimum: 0
-          description: Number of predictions that have been scored after match completion.
+          description: Number of predictions scored after match completion.
         correct:
           type: integer
           minimum: 0
@@ -296,11 +292,11 @@ components:
 
     HomeDashboard:
       type: object
-      required: [upcomingMatches, predictionStats]
+      required: [upcomingMatches, totalUpcoming, predictionStats]
       properties:
         upcomingMatches:
           type: array
-          description: Next up-to-8 UPCOMING matches with the user's prediction (if any).
+          description: Up to 8 UPCOMING matches (paginated via offset) with the user's prediction (if any).
           items:
             allOf:
               - $ref: '#/components/schemas/Match'
@@ -322,8 +318,18 @@ components:
                         updatedAt:
                           type: string
                           format: date-time
+        totalUpcoming:
+          type: integer
+          minimum: 0
+          description: Total count of UPCOMING matches, for client-side pagination.
         predictionStats:
-          $ref: '#/components/schemas/PredictionStats'
+          type: object
+          required: [group, knockout]
+          properties:
+            group:
+              $ref: '#/components/schemas/StageStats'
+            knockout:
+              $ref: '#/components/schemas/StageStats'
 
     # ---- Response envelopes --------------------------------------------------
     SuccessEnvelope:
@@ -513,9 +519,18 @@ paths:
       security:
         - sessionCookie: []
       description: |
-        Returns the next up-to-8 UPCOMING matches (with the authenticated user's prediction
-        if one exists) and the user's aggregate prediction stats. Designed to power the
-        post-login home page dashboard.
+        Returns a paginated slice of UPCOMING matches (with the authenticated user's prediction),
+        the total upcoming match count for client pagination, and prediction stats split by
+        group stage vs knockout stage.
+      parameters:
+        - name: offset
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 0
+            default: 0
+          description: Number of matches to skip (for load-more pagination).
       responses:
         '200':
           description: Dashboard data for the authenticated user.
@@ -553,7 +568,7 @@ paths:
         - sessionCookie: []
       responses:
         '200':
-          description: Array of matches, optionally annotated with the user's predictions.
+          description: Array of matches, optionally annotated with the user's predictions, plus bracket lock flag.
           content:
             application/json:
               schema:
@@ -565,6 +580,9 @@ paths:
                         type: array
                         items:
                           $ref: '#/components/schemas/MatchWithPrediction'
+                      knockoutLocked:
+                        type: boolean
+                        description: True once the first Round of 32 match has kicked off. All knockout predictions are frozen when this is true.
         '400':
           description: Missing or invalid `stage` query parameter.
           content:
@@ -643,11 +661,12 @@ paths:
       security:
         - sessionCookie: []
       description: |
-        Creates a new prediction or updates an existing draft (unsubmitted)
-        prediction. Rules:
+        Creates a new prediction or updates an existing one (resets `isSubmitted` to
+        the value of the optional `isSubmitted` flag). Rules:
         - Match must be `UPCOMING` and `kickoffTime` must be in the future.
         - `DRAW` is only valid for `GROUP` stage matches.
-        - Once a prediction is submitted it cannot be updated via this endpoint.
+        - Pass `isSubmitted: true` to atomically save and submit in one call (used
+          by the group-stage UI for single-click predictions).
       requestBody:
         required: true
         content:
@@ -660,9 +679,14 @@ paths:
                   type: string
                 predictedOutcome:
                   $ref: '#/components/schemas/Outcome'
+                isSubmitted:
+                  type: boolean
+                  default: false
+                  description: If true, the prediction is saved and submitted atomically.
             example:
               matchId: clmatch001
               predictedOutcome: HOME_WIN
+              isSubmitted: true
       responses:
         '200':
           description: Created or updated prediction.
@@ -755,6 +779,38 @@ paths:
 
   # ---- Leagues --------------------------------------------------------------
   /leagues:
+    get:
+      tags: [leagues]
+      summary: List leagues the authenticated user belongs to
+      operationId: getMyLeagues
+      security:
+        - sessionCookie: []
+      description: Returns all leagues the current user has joined or created, ordered most-recently-joined first. Each league includes `_count.members`.
+      responses:
+        '200':
+          description: Array of leagues.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/SuccessEnvelope'
+                  - type: object
+                    properties:
+                      data:
+                        type: array
+                        items:
+                          allOf:
+                            - $ref: '#/components/schemas/League'
+                            - type: object
+                              properties:
+                                _count:
+                                  type: object
+                                  properties:
+                                    members:
+                                      type: integer
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
     post:
       tags: [leagues]
       summary: Create a league

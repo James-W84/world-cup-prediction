@@ -20,6 +20,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           <div className="nav-links">
             {user ? (
               <>
+                <Link href="/">Home</Link>
                 <Link href="/predictions">Predictions</Link>
                 <Link href="/leagues">Leagues</Link>
                 <Link href="/matches">Matches</Link>

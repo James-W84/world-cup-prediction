@@ -16,7 +16,7 @@ async function isKnockoutLocked(): Promise<boolean> {
 export const predictionController = {
   createOrUpdate: async (req: Request, res: Response): Promise<void> => {
     try {
-      const { matchId, predictedOutcome } = req.body;
+      const { matchId, predictedOutcome, isSubmitted: submitNow = false } = req.body;
       const userId = req.user?.id;
 
       if (!userId || !matchId || !predictedOutcome) {
@@ -49,8 +49,8 @@ export const predictionController = {
 
       const prediction = await prisma.matchPrediction.upsert({
         where: { userId_matchId: { userId, matchId } },
-        update: { predictedOutcome, isSubmitted: false },
-        create: { userId, matchId, predictedOutcome },
+        update: { predictedOutcome, isSubmitted: Boolean(submitNow) },
+        create: { userId, matchId, predictedOutcome, isSubmitted: Boolean(submitNow) },
       });
 
       logger.info(`Prediction saved: user=${userId}, match=${matchId}, outcome=${predictedOutcome}`);

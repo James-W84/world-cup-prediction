@@ -1,6 +1,8 @@
 import express, { Request, Response, NextFunction } from 'express';
 import cors from 'cors';
 import session from 'express-session';
+import connectPgSimple from 'connect-pg-simple';
+import { Pool } from 'pg';
 import './config/passport';
 import passport from 'passport';
 import { config } from './config';
@@ -18,7 +20,7 @@ app.use(cors({
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
-app.use(session({
+const sessionOptions: session.SessionOptions = {
   secret: config.session.secret,
   resave: false,
   saveUninitialized: false,
@@ -28,7 +30,16 @@ app.use(session({
     maxAge: config.session.maxAge,
     sameSite: config.nodeEnv === 'production' ? 'none' : 'lax',
   },
-}));
+};
+
+const dbUrl = process.env.DATABASE_URL || '';
+if (dbUrl && !dbUrl.startsWith('file:')) {
+  const PgSession = connectPgSimple(session);
+  const pgPool = new Pool({ connectionString: dbUrl });
+  sessionOptions.store = new PgSession({ pool: pgPool, createTableIfMissing: true });
+}
+
+app.use(session(sessionOptions));
 
 app.use(passport.initialize());
 app.use(passport.session());

@@ -31,10 +31,16 @@ router.get('/predictions', requireAuth, predictionController.getByMatch);
 router.post('/predictions/:predictionId/submit', requireAuth, predictionController.submit);
 
 // Leagues
+router.get('/leagues', requireAuth, leagueController.getMyLeagues);
 router.post('/leagues', requireAuth, leagueController.create);
 router.post('/leagues/join', requireAuth, leagueController.join);
 router.get('/leagues/:leagueId', requireAuth, leagueController.getDetails);
 router.get('/leagues/:leagueId/leaderboard', requireAuth, leagueController.getLeaderboard);
+router.get('/leagues/:leagueId/requests', requireAuth, leagueController.getJoinRequests);
+router.post('/leagues/:leagueId/requests/:requestId/approve', requireAuth, leagueController.approveRequest);
+router.post('/leagues/:leagueId/requests/:requestId/deny', requireAuth, leagueController.denyRequest);
+router.delete('/leagues/:leagueId/members/:memberId', requireAuth, leagueController.removeMember);
+router.delete('/leagues/:leagueId', requireAuth, leagueController.deleteLeague);
 
 // Matches (public read)
 router.get('/matches', matchController.getByStage);
