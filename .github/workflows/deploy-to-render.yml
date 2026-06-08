@@ -39,14 +39,20 @@ jobs:
           COMMIT: ${{ github.sha }}
         run: |
           echo "Triggering deploy for web (service: $SERVICE_ID, commit: $COMMIT)"
-          resp=$(curl -s -X POST "https://api.render.com/v1/services/$SERVICE_ID/deploys" \
+          payload=$(jq -n --arg commit "$COMMIT" '{commitId: $commit}')
+          http_status=$(curl -sS -o deploy_web_response.json -w "%{http_code}" -X POST "https://api.render.com/v1/services/$SERVICE_ID/deploys" \
             -H "Authorization: Bearer $RENDER_API_KEY" \
             -H "Content-Type: application/json" \
-            -d "{\"commit\": \"$COMMIT\"}")
-          echo "$resp" > deploy_web_response.json
-          deploy_id=$(echo "$resp" | jq -r '.id')
-          if [ -z "$deploy_id" ] || [ "$deploy_id" = "null" ]; then
-            echo "Failed creating web deploy: $resp"
+            -d "$payload")
+          resp=$(cat deploy_web_response.json)
+          if [ "$http_status" -lt 200 ] || [ "$http_status" -ge 300 ]; then
+            echo "Failed creating web deploy. HTTP $http_status"
+            echo "$resp"
+            exit 1
+          fi
+          if ! deploy_id=$(jq -er 'if type == "object" then .id // empty else empty end' deploy_web_response.json); then
+            echo "Failed creating web deploy: response did not contain a deploy id. HTTP $http_status"
+            echo "$resp"
             exit 1
           fi
           echo "deploy_id=$deploy_id" >> $GITHUB_OUTPUT
@@ -58,14 +64,20 @@ jobs:
           deploy_id=${{ steps.create_deploy_web.outputs.deploy_id }}
           echo "Waiting for web deploy $deploy_id"
           for i in {1..60}; do
-            status=$(curl -s -H "Authorization: Bearer $RENDER_API_KEY" \
-              "https://api.render.com/v1/services/$SERVICE_ID/deploys/$deploy_id" | jq -r '.status')
+            http_status=$(curl -sS -o deploy_web_status.json -w "%{http_code}" -H "Authorization: Bearer $RENDER_API_KEY" \
+              "https://api.render.com/v1/services/$SERVICE_ID/deploys/$deploy_id")
+            if [ "$http_status" -lt 200 ] || [ "$http_status" -ge 300 ]; then
+              echo "Failed retrieving web deploy status. HTTP $http_status"
+              cat deploy_web_status.json
+              exit 1
+            fi
+            status=$(jq -er 'if type == "object" then .status // empty else empty end' deploy_web_status.json)
             echo "[$i] status=$status"
-            if [ "$status" = "success" ] || [ "$status" = "deployed" ]; then
+            if [ "$status" = "live" ]; then
               echo "Web deploy succeeded"
               exit 0
             fi
-            if [ "$status" = "failed" ]; then
+            if [ "$status" = "build_failed" ] || [ "$status" = "update_failed" ] || [ "$status" = "pre_deploy_failed" ] || [ "$status" = "canceled" ]; then
               echo "Web deploy failed"
               exit 1
             fi
@@ -107,14 +119,20 @@ jobs:
           COMMIT: ${{ github.sha }}
         run: |
           echo "Triggering deploy for api (service: $SERVICE_ID, commit: $COMMIT)"
-          resp=$(curl -s -X POST "https://api.render.com/v1/services/$SERVICE_ID/deploys" \
+          payload=$(jq -n --arg commit "$COMMIT" '{commitId: $commit}')
+          http_status=$(curl -sS -o deploy_api_response.json -w "%{http_code}" -X POST "https://api.render.com/v1/services/$SERVICE_ID/deploys" \
             -H "Authorization: Bearer $RENDER_API_KEY" \
             -H "Content-Type: application/json" \
-            -d "{\"commit\": \"$COMMIT\"}")
-          echo "$resp" > deploy_api_response.json
-          deploy_id=$(echo "$resp" | jq -r '.id')
-          if [ -z "$deploy_id" ] || [ "$deploy_id" = "null" ]; then
-            echo "Failed creating api deploy: $resp"
+            -d "$payload")
+          resp=$(cat deploy_api_response.json)
+          if [ "$http_status" -lt 200 ] || [ "$http_status" -ge 300 ]; then
+            echo "Failed creating api deploy. HTTP $http_status"
+            echo "$resp"
+            exit 1
+          fi
+          if ! deploy_id=$(jq -er 'if type == "object" then .id // empty else empty end' deploy_api_response.json); then
+            echo "Failed creating api deploy: response did not contain a deploy id. HTTP $http_status"
+            echo "$resp"
             exit 1
           fi
           echo "deploy_id=$deploy_id" >> $GITHUB_OUTPUT
@@ -126,14 +144,20 @@ jobs:
           deploy_id=${{ steps.create_deploy_api.outputs.deploy_id }}
           echo "Waiting for api deploy $deploy_id"
           for i in {1..60}; do
-            status=$(curl -s -H "Authorization: Bearer $RENDER_API_KEY" \
-              "https://api.render.com/v1/services/$SERVICE_ID/deploys/$deploy_id" | jq -r '.status')
+            http_status=$(curl -sS -o deploy_api_status.json -w "%{http_code}" -H "Authorization: Bearer $RENDER_API_KEY" \
+              "https://api.render.com/v1/services/$SERVICE_ID/deploys/$deploy_id")
+            if [ "$http_status" -lt 200 ] || [ "$http_status" -ge 300 ]; then
+              echo "Failed retrieving api deploy status. HTTP $http_status"
+              cat deploy_api_status.json
+              exit 1
+            fi
+            status=$(jq -er 'if type == "object" then .status // empty else empty end' deploy_api_status.json)
             echo "[$i] status=$status"
-            if [ "$status" = "success" ] || [ "$status" = "deployed" ]; then
+            if [ "$status" = "live" ]; then
               echo "API deploy succeeded"
               exit 0
             fi
-            if [ "$status" = "failed" ]; then
+            if [ "$status" = "build_failed" ] || [ "$status" = "update_failed" ] || [ "$status" = "pre_deploy_failed" ] || [ "$status" = "canceled" ]; then
               echo "API deploy failed"
               exit 1
             fi
