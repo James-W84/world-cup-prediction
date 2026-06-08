@@ -26,7 +26,12 @@
 - **Auth:** Session cookie + Passport Google OAuth; protected API routes use `requireAuth`; web auth state from `useAuth`.
 - **Database:** Prisma schema source of truth; compound unique keys drive upserts: `userId_matchId`, `userId_leagueId`, `provider_providerAccountId`.
 
-## 4. Token Conservation & Persona Protocols
+## 4. CI/CD & Deployment
+- **Platform:** Render (both services); internal network URL `http://wc2026-api:10000` used by Next.js rewrite (`API_INTERNAL_URL`).
+- **Proxy architecture:** All frontend→API traffic routes through Next.js rewrite at `/api/:path*`; browser never calls the API domain directly. `GOOGLE_CALLBACK_URL` must point to `https://wc2026-web-22bb.onrender.com/api/auth/google/callback`.
+- **GHA workflow:** `.github/workflows/deploy-to-render.yml`; path-filtered per service; secrets `RENDER_DEPLOY_HOOK_API` and `RENDER_DEPLOY_HOOK_WEB` stored in GitHub Environment named `deployment`.
+
+## 5. Token Conservation & Persona Protocols
 - **File Access:** Do not read lockfiles (`api/package-lock.json`, `web/package-lock.json`), `node_modules/`, `api/dist/`, `web/.next/`, `*.tsbuildinfo`, migration SQL unless explicitly commanded.
 - **Output Constraints:** Return ONLY precise code blocks changing. Never re-write entire files for minor changes. Omit unrequested wrapper code.
 - **Comms Profile:** Eradicate conversational filler ("Sure, I can help with that", "Here is the modified code"). State direct problem, output code diff, terminate response.

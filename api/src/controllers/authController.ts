@@ -78,7 +78,6 @@ export const authController = {
       res.status(401).json({ success: false, error: "Not authenticated" });
       return;
     }
-
     res.json({
       success: true,
       data: {
