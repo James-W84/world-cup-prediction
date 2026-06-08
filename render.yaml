@@ -20,7 +20,7 @@ services:
       - key: GOOGLE_CLIENT_SECRET
         sync: false
       - key: GOOGLE_CALLBACK_URL
-        sync: false          # https://wc2026-api.onrender.com/auth/google/callback
+        sync: false          # https://wc2026-web.onrender.com/api/auth/google/callback
       - key: FOOTBALL_DATA_API_KEY
         sync: false
       - key: SESSION_SECRET

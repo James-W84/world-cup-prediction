@@ -63,21 +63,6 @@ export const authController = {
             return;
           }
 
-          console.info(`\n🚀 [INCOMING] ${req.method} ${req.url}`);
-          console.info(`Headers:`, req.headers);
-          console.info(`Query:`, req.query);
-          console.info(`Body:`, req.body);
-          if (req.session) console.info(`Session:`, req.session);
-          if (req.user) console.info(`User:`, req.user);
-
-          // 2. Log the outgoing stuff once the request finishes
-          res.on("finish", () => {
-            console.info(
-              `✅ [OUTGOING] ${req.method} ${req.url} - Status: ${res.statusCode}`,
-            );
-            console.info(`Response Headers:`, res.getHeaders());
-          });
-
           redirectAfterSessionSave(
             req,
             res,
