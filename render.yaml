@@ -4,7 +4,7 @@ services:
     name: wc2026-api
     runtime: node
     rootDir: api
-    buildCommand: npm install && npm run build && npx prisma migrate deploy
+    buildCommand: npm install --include=dev && npx prisma generate && npm run build && npx prisma migrate deploy
     startCommand: npm start
     plan: free
     envVars:
@@ -41,6 +41,27 @@ services:
     envVars:
       - key: NEXT_PUBLIC_API_URL
         sync: false          # https://wc2026-api.onrender.com
+
+  # ── Cron: sync matches + score every 5 minutes ─────────────────────────────
+  - type: cron
+    name: wc2026-cron-sync
+    runtime: node
+    rootDir: api
+    buildCommand: npm install && npm run build
+    startCommand: node -e "
+      const https = require('https');
+      const url = new URL(process.env.API_URL + '/cron/sync');
+      https.request(url, { method: 'POST', headers: { 'x-api-key': process.env.CRON_API_KEY } }, r => r.resume()).end();
+      const url2 = new URL(process.env.API_URL + '/cron/score');
+      https.request(url2, { method: 'POST', headers: { 'x-api-key': process.env.CRON_API_KEY } }, r => r.resume()).end();
+    "
+    schedule: "*/5 * * * *"
+    plan: free
+    envVars:
+      - key: API_URL
+        sync: false          # https://wc2026-api.onrender.com
+      - key: CRON_API_KEY
+        sync: false          # must match the value generated for wc2026-api
 
 # ── PostgreSQL ──────────────────────────────────────────────────────────────
 databases:
