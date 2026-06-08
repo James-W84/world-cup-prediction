@@ -6,7 +6,7 @@ on:
   workflow_dispatch: {}
 
 jobs:
-  deploy:
+  deploy-web:
     runs-on: ubuntu-latest
     environment: deployment
     env:
@@ -18,11 +18,10 @@ jobs:
       - name: Install jq
         run: sudo apt-get update && sudo apt-get install -y jq
 
-      - name: Validate Render secrets
+      - name: Validate web service secrets
         env:
           RENDER_API_KEY: ${{ secrets.RENDER_API_KEY }}
           RENDER_SERVICE_ID_WEB: ${{ secrets.RENDER_SERVICE_ID_WEB }}
-          RENDER_SERVICE_ID_API: ${{ secrets.RENDER_SERVICE_ID_API }}
         run: |
           if [ -z "$RENDER_API_KEY" ]; then
             echo "Missing GitHub secret: RENDER_API_KEY" >&2
@@ -30,10 +29,6 @@ jobs:
           fi
           if [ -z "$RENDER_SERVICE_ID_WEB" ]; then
             echo "Missing GitHub secret: RENDER_SERVICE_ID_WEB" >&2
-            exit 1
-          fi
-          if [ -z "$RENDER_SERVICE_ID_API" ]; then
-            echo "Missing GitHub secret: RENDER_SERVICE_ID_API" >&2
             exit 1
           fi
 
@@ -78,6 +73,32 @@ jobs:
           done
           echo "Timed out waiting for web deploy"
           exit 1
+
+  deploy-api:
+    runs-on: ubuntu-latest
+    environment: deployment
+    env:
+      RENDER_API_KEY: ${{ secrets.RENDER_API_KEY }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install jq
+        run: sudo apt-get update && sudo apt-get install -y jq
+
+      - name: Validate api service secrets
+        env:
+          RENDER_API_KEY: ${{ secrets.RENDER_API_KEY }}
+          RENDER_SERVICE_ID_API: ${{ secrets.RENDER_SERVICE_ID_API }}
+        run: |
+          if [ -z "$RENDER_API_KEY" ]; then
+            echo "Missing GitHub secret: RENDER_API_KEY" >&2
+            exit 1
+          fi
+          if [ -z "$RENDER_SERVICE_ID_API" ]; then
+            echo "Missing GitHub secret: RENDER_SERVICE_ID_API" >&2
+            exit 1
+          fi
 
       - id: create_deploy_api
         name: Trigger Render deploy (api)
