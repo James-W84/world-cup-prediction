@@ -1,0 +1,23 @@
+name: Deploy to Render
+
+on:
+  push:
+    branches: [master]
+
+jobs:
+  deploy-api:
+    name: Deploy API
+    runs-on: ubuntu-latest
+    steps:
+      - name: Trigger Render deploy
+        run: |
+          curl -fsSL -X POST "${{ secrets.RENDER_DEPLOY_HOOK_API }}"
+
+  deploy-web:
+    name: Deploy Web
+    runs-on: ubuntu-latest
+    needs: deploy-api
+    steps:
+      - name: Trigger Render deploy
+        run: |
+          curl -fsSL -X POST "${{ secrets.RENDER_DEPLOY_HOOK_WEB }}"

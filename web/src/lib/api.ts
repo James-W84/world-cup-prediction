@@ -1,15 +1,7 @@
-const API_PORT = '4000';
-
 export function getApiUrl(): string {
-  const configuredUrl = process.env.NEXT_PUBLIC_API_URL;
-  if (configuredUrl) return configuredUrl.replace(/\/$/, '');
+  if (process.env.NODE_ENV === 'production') return '/api';
 
-  if (typeof window !== 'undefined') {
-    const { protocol, hostname } = window.location;
-    return `${protocol}//${hostname}:${API_PORT}`;
-  }
-
-  return `http://localhost:${API_PORT}`;
+  return process.env.NEXT_PUBLIC_API_URL?.replace(/\/$/, '') ?? 'http://localhost:4000';
 }
 
 export function getGoogleAuthUrl(): string {
