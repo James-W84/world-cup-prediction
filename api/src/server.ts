@@ -46,11 +46,11 @@ app.use(passport.session());
 
 app.use('/', apiRoutes);
 
-app.get('/health', (_req, res) => {
+app.get('/health', (_req: Request, res: Response) => {
   res.status(200).json({ status: 'ok', timestamp: new Date().toISOString() });
 });
 
-app.use((_req, res) => {
+app.use((_req: Request, res: Response) => {
   res.status(404).json({ success: false, error: 'Not found' });
 });
 
