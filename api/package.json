@@ -10,7 +10,10 @@
     "seed": "tsx prisma/seed.ts",
     "migrate": "prisma migrate dev",
     "migrate:prod": "prisma migrate deploy",
-    "seed:prod": "tsx prisma/seed.ts"
+    "seed:prod": "tsx prisma/seed.ts",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:setup": "cp prisma/dev.db prisma/test.db"
   },
   "keywords": [],
   "author": "",
@@ -44,6 +47,7 @@
     "@types/pg": "^8.20.0",
     "ts-node-dev": "^2.0.0",
     "tsx": "^4.22.4",
-    "typescript": "^5.9.3"
+    "typescript": "^5.9.3",
+    "vitest": "^4.1.8"
   }
 }

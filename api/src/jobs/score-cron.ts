@@ -15,7 +15,7 @@ const STAGE_POINTS: Record<string, number> = {
 
 // Derive W/D/L-based group table from a list of match outcomes.
 // Ties broken by: points → wins → alphabetical (no scores available).
-function computeGroupTable(
+export function computeGroupTable(
   matches: { homeTeam: string; awayTeam: string; outcome: string | null }[]
 ): string[] {
   const records = new Map<string, { points: number; wins: number }>();
