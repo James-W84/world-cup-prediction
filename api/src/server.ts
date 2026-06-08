@@ -34,7 +34,7 @@ const sessionOptions: session.SessionOptions = {
     secure: config.nodeEnv === "production",
     httpOnly: true,
     maxAge: config.session.maxAge,
-    sameSite: config.nodeEnv === "production" ? "none" : "lax",
+    sameSite: "lax",
   },
 };
 

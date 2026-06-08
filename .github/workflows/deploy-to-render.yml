@@ -1,0 +1,102 @@
+name: Deploy to Render
+
+on:
+  push:
+    branches: [ master ]
+  workflow_dispatch: {}
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    env:
+      RENDER_API_KEY: ${{ secrets.RENDER_API_KEY }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install jq
+        run: sudo apt-get update && sudo apt-get install -y jq
+
+      - id: create_deploy_web
+        name: Trigger Render deploy (web)
+        env:
+          SERVICE_ID: ${{ secrets.RENDER_SERVICE_ID_WEB }}
+          COMMIT: ${{ github.sha }}
+        run: |
+          echo "Triggering deploy for web (service: $SERVICE_ID, commit: $COMMIT)"
+          resp=$(curl -s -X POST "https://api.render.com/v1/services/$SERVICE_ID/deploys" \
+            -H "Authorization: Bearer $RENDER_API_KEY" \
+            -H "Content-Type: application/json" \
+            -d "{\"commit\": \"$COMMIT\"}")
+          echo "$resp" > deploy_web_response.json
+          deploy_id=$(echo "$resp" | jq -r '.id')
+          if [ -z "$deploy_id" ] || [ "$deploy_id" = "null" ]; then
+            echo "Failed creating web deploy: $resp"
+            exit 1
+          fi
+          echo "deploy_id=$deploy_id" >> $GITHUB_OUTPUT
+
+      - name: Wait for web deploy to complete
+        env:
+          SERVICE_ID: ${{ secrets.RENDER_SERVICE_ID_WEB }}
+        run: |
+          deploy_id=${{ steps.create_deploy_web.outputs.deploy_id }}
+          echo "Waiting for web deploy $deploy_id"
+          for i in {1..60}; do
+            status=$(curl -s -H "Authorization: Bearer $RENDER_API_KEY" \
+              "https://api.render.com/v1/services/$SERVICE_ID/deploys/$deploy_id" | jq -r '.status')
+            echo "[$i] status=$status"
+            if [ "$status" = "success" ] || [ "$status" = "deployed" ]; then
+              echo "Web deploy succeeded"
+              exit 0
+            fi
+            if [ "$status" = "failed" ]; then
+              echo "Web deploy failed"
+              exit 1
+            fi
+            sleep 5
+          done
+          echo "Timed out waiting for web deploy"
+          exit 1
+
+      - id: create_deploy_api
+        name: Trigger Render deploy (api)
+        env:
+          SERVICE_ID: ${{ secrets.RENDER_SERVICE_ID_API }}
+          COMMIT: ${{ github.sha }}
+        run: |
+          echo "Triggering deploy for api (service: $SERVICE_ID, commit: $COMMIT)"
+          resp=$(curl -s -X POST "https://api.render.com/v1/services/$SERVICE_ID/deploys" \
+            -H "Authorization: Bearer $RENDER_API_KEY" \
+            -H "Content-Type: application/json" \
+            -d "{\"commit\": \"$COMMIT\"}")
+          echo "$resp" > deploy_api_response.json
+          deploy_id=$(echo "$resp" | jq -r '.id')
+          if [ -z "$deploy_id" ] || [ "$deploy_id" = "null" ]; then
+            echo "Failed creating api deploy: $resp"
+            exit 1
+          fi
+          echo "deploy_id=$deploy_id" >> $GITHUB_OUTPUT
+
+      - name: Wait for api deploy to complete
+        env:
+          SERVICE_ID: ${{ secrets.RENDER_SERVICE_ID_API }}
+        run: |
+          deploy_id=${{ steps.create_deploy_api.outputs.deploy_id }}
+          echo "Waiting for api deploy $deploy_id"
+          for i in {1..60}; do
+            status=$(curl -s -H "Authorization: Bearer $RENDER_API_KEY" \
+              "https://api.render.com/v1/services/$SERVICE_ID/deploys/$deploy_id" | jq -r '.status')
+            echo "[$i] status=$status"
+            if [ "$status" = "success" ] || [ "$status" = "deployed" ]; then
+              echo "API deploy succeeded"
+              exit 0
+            fi
+            if [ "$status" = "failed" ]; then
+              echo "API deploy failed"
+              exit 1
+            fi
+            sleep 5
+          done
+          echo "Timed out waiting for api deploy"
+          exit 1
