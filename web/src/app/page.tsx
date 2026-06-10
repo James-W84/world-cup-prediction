@@ -7,8 +7,8 @@ import {
   HomeDashboard,
   UpcomingMatchWithPrediction,
   StageStats,
-  startGoogleAuth,
 } from "../lib/api";
+import { GoogleAuthButton } from "../components/GoogleAuthButton";
 
 function ProfileCard({
   user,
@@ -462,13 +462,10 @@ export default function HomePage() {
       <p style={{ color: "var(--muted)", marginBottom: 32 }}>
         Predict match outcomes, join leagues, and compete with friends.
       </p>
-      <button
-        className="btn-primary"
-        onClick={startGoogleAuth}
+      <GoogleAuthButton
+        label="Sign in with Google to start"
         style={{ padding: "12px 32px", fontSize: 16 }}
-      >
-        Sign in with Google to start
-      </button>
+      />
     </div>
   );
 }
