@@ -27,8 +27,30 @@ export const leagueController = {
         },
       });
 
+      // For leagues the user created, fetch pending request counts in one query
+      const adminLeagueIds = memberships
+        .filter((m) => m.league.createdBy === userId)
+        .map((m) => m.league.id);
+
+      const pendingCounts = adminLeagueIds.length
+        ? await prisma.leagueJoinRequest.groupBy({
+            by: ['leagueId'],
+            where: { leagueId: { in: adminLeagueIds }, status: 'PENDING' },
+            _count: { id: true },
+          })
+        : [];
+
+      const pendingCountMap = Object.fromEntries(
+        pendingCounts.map((r) => [r.leagueId, r._count.id]),
+      );
+
       const leagueList = [
-        ...memberships.map((m) => ({ ...m.league, joinStatus: 'member' as const })),
+        ...memberships.map((m) => ({
+          ...m.league,
+          joinStatus: 'member' as const,
+          isAdmin: m.league.createdBy === userId,
+          pendingRequestCount: pendingCountMap[m.league.id] ?? 0,
+        })),
         ...pendingRequests.map((r) => ({ ...r.league, joinStatus: 'pending' as const })),
       ];
 

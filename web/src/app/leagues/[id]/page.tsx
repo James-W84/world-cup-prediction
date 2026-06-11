@@ -32,14 +32,18 @@ export default function LeaguePage() {
     (async () => {
       setLoading(true);
       try {
-        const [l, lb] = await Promise.all([getLeague(id), getLeaderboard(id, 0)]);
+        const l = await getLeague(id);
         setLeague(l);
-        setBoard(lb.leaderboard);
-        setPagination({ page: 0, hasMore: lb.pagination.hasMore, total: lb.pagination.total });
-        if (l.isAdmin) {
-          const reqs = await getJoinRequests(id);
-          setJoinRequests(reqs);
+        const isMember = l.joinStatus === 'member';
+        const [lb, reqs] = await Promise.all([
+          isMember ? getLeaderboard(id, 0) : Promise.resolve(null),
+          l.isAdmin ? getJoinRequests(id) : Promise.resolve([]),
+        ]);
+        if (lb) {
+          setBoard(lb.leaderboard);
+          setPagination({ page: 0, hasMore: lb.pagination.hasMore, total: lb.pagination.total });
         }
+        setJoinRequests(reqs);
       } catch (err: any) {
         setError(err.message);
       } finally {

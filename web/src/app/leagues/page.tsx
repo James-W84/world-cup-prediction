@@ -145,7 +145,14 @@ export default function LeaguesPage() {
               <Link key={league.id} href={`/leagues/${league.id}`} style={{ textDecoration: 'none' }}>
                 <div className="card" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', cursor: 'pointer' }}>
                   <div>
-                    <div style={{ fontWeight: 600 }}>{league.name}</div>
+                    <div style={{ fontWeight: 600, display: 'flex', alignItems: 'center', gap: 8 }}>
+                      {league.name}
+                      {league.isAdmin && (league.pendingRequestCount ?? 0) > 0 && (
+                        <span className="badge badge-warning" style={{ fontSize: 11 }}>
+                          {league.pendingRequestCount} pending
+                        </span>
+                      )}
+                    </div>
                     <div style={{ fontSize: 12, color: 'var(--muted)', marginTop: 2 }}>
                       {league._count?.members ?? 0} member{(league._count?.members ?? 1) !== 1 ? 's' : ''} · Code: {league.inviteCode}
                     </div>
