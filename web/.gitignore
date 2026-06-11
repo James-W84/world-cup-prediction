@@ -18,4 +18,5 @@ out/
 build/
 coverage/
 .turbo/
+*.tsbuildinfo
 
