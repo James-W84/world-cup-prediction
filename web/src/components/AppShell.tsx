@@ -2,7 +2,7 @@
 import { useEffect } from 'react';
 import Link from 'next/link';
 import { useAuth } from '../store/auth';
-import { startGoogleAuth } from '../lib/api';
+import { GoogleAuthButton } from './GoogleAuthButton';
 
 export function AppShell({ children }: { children: React.ReactNode }) {
   const { user, loading, initialized, initialize, logout } = useAuth();
@@ -30,9 +30,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
               </>
             ) : (
               !loading && (
-                <button className="btn-primary" onClick={startGoogleAuth}>
-                  Sign in with Google
-                </button>
+                <GoogleAuthButton />
               )
             )}
           </div>
