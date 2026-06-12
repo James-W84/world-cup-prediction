@@ -143,15 +143,23 @@ function StandingsView({ standings }: { standings: Record<string, GroupStanding[
           <div style={{ padding: '8px 14px', borderBottom: '1px solid var(--border)', fontSize: 12, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', color: 'var(--accent)' }}>
             Group {group}
           </div>
-          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
+          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13, tableLayout: 'fixed' }}>
+            <colgroup>
+              <col /> {/* Team — takes remaining space */}
+              <col style={{ width: 28 }} />
+              <col style={{ width: 28 }} />
+              <col style={{ width: 28 }} />
+              <col style={{ width: 28 }} />
+              <col style={{ width: 38 }} /> {/* Pts — slightly wider */}
+            </colgroup>
             <thead>
               <tr style={{ color: 'var(--muted)', fontSize: 11 }}>
                 <th style={{ padding: '6px 14px', textAlign: 'left', fontWeight: 500 }}>Team</th>
-                <th style={{ padding: '6px 6px', textAlign: 'center', fontWeight: 500 }}>P</th>
-                <th style={{ padding: '6px 6px', textAlign: 'center', fontWeight: 500 }}>W</th>
-                <th style={{ padding: '6px 6px', textAlign: 'center', fontWeight: 500 }}>D</th>
-                <th style={{ padding: '6px 6px', textAlign: 'center', fontWeight: 500 }}>L</th>
-                <th style={{ padding: '6px 14px 6px 6px', textAlign: 'center', fontWeight: 500 }}>Pts</th>
+                <th style={{ padding: '6px 0', textAlign: 'center', fontWeight: 500 }}>P</th>
+                <th style={{ padding: '6px 0', textAlign: 'center', fontWeight: 500 }}>W</th>
+                <th style={{ padding: '6px 0', textAlign: 'center', fontWeight: 500 }}>D</th>
+                <th style={{ padding: '6px 0', textAlign: 'center', fontWeight: 500 }}>L</th>
+                <th style={{ padding: '6px 10px 6px 0', textAlign: 'center', fontWeight: 500 }}>Pts</th>
               </tr>
             </thead>
             <tbody>
@@ -159,17 +167,19 @@ function StandingsView({ standings }: { standings: Record<string, GroupStanding[
                 const advancing = i < 2;
                 return (
                   <tr key={row.team} style={{ borderTop: '1px solid var(--border)', background: i === 2 && standings[group][2]?.played > 0 ? 'rgba(245,158,11,0.05)' : undefined }}>
-                    <td style={{ padding: '8px 14px', display: 'flex', alignItems: 'center', gap: 6 }}>
-                      {advancing && row.played > 0 && (
-                        <span style={{ width: 3, height: 14, borderRadius: 2, background: 'var(--success)', flexShrink: 0, display: 'inline-block' }} />
-                      )}
-                      <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontWeight: row.played > 0 ? 500 : 400 }}>{row.team}</span>
+                    <td style={{ padding: '8px 14px', overflow: 'hidden' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                        {advancing && row.played > 0 && (
+                          <span style={{ width: 3, height: 14, borderRadius: 2, background: 'var(--success)', flexShrink: 0, display: 'inline-block' }} />
+                        )}
+                        <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontWeight: row.played > 0 ? 500 : 400 }}>{row.team}</span>
+                      </div>
                     </td>
-                    <td style={{ padding: '8px 6px', textAlign: 'center', color: 'var(--muted)' }}>{row.played}</td>
-                    <td style={{ padding: '8px 6px', textAlign: 'center', color: 'var(--muted)' }}>{row.won}</td>
-                    <td style={{ padding: '8px 6px', textAlign: 'center', color: 'var(--muted)' }}>{row.drawn}</td>
-                    <td style={{ padding: '8px 6px', textAlign: 'center', color: 'var(--muted)' }}>{row.lost}</td>
-                    <td style={{ padding: '8px 14px 8px 6px', textAlign: 'center', fontWeight: 700 }}>{row.points}</td>
+                    <td style={{ padding: '8px 0', textAlign: 'center', color: 'var(--muted)' }}>{row.played}</td>
+                    <td style={{ padding: '8px 0', textAlign: 'center', color: 'var(--muted)' }}>{row.won}</td>
+                    <td style={{ padding: '8px 0', textAlign: 'center', color: 'var(--muted)' }}>{row.drawn}</td>
+                    <td style={{ padding: '8px 0', textAlign: 'center', color: 'var(--muted)' }}>{row.lost}</td>
+                    <td style={{ padding: '8px 10px 8px 0', textAlign: 'center', fontWeight: 700 }}>{row.points}</td>
                   </tr>
                 );
               })}
