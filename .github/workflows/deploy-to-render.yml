@@ -30,55 +30,14 @@ jobs:
     runs-on: ubuntu-latest
     environment: deployment
     steps:
-      - name: Validate secrets
+      - name: Validate secret
         run: |
-          for var in RENDER_DEPLOY_HOOK_API RENDER_API_KEY RENDER_SERVICE_ID_API; do
-            if [ -z "${!var}" ]; then
-              echo "::error::$var secret is not set"
-              exit 1
-            fi
-          done
-        env:
-          RENDER_DEPLOY_HOOK_API: ${{ secrets.RENDER_DEPLOY_HOOK_API }}
-          RENDER_API_KEY: ${{ secrets.RENDER_API_KEY }}
-          RENDER_SERVICE_ID_API: ${{ secrets.RENDER_SERVICE_ID_API }}
-
-      - name: Trigger and await deploy
-        env:
-          RENDER_API_KEY: ${{ secrets.RENDER_API_KEY }}
-          SERVICE_ID: ${{ secrets.RENDER_SERVICE_ID_API }}
-          DEPLOY_HOOK_URL: ${{ secrets.RENDER_DEPLOY_HOOK_API }}
-        run: |
-          RESPONSE=$(curl -fsSL -X POST "$DEPLOY_HOOK_URL")
-          DEPLOY_ID=$(echo "$RESPONSE" | jq -r '.id')
-
-          if [ -z "$DEPLOY_ID" ] || [ "$DEPLOY_ID" = "null" ]; then
-            echo "::error::Failed to get deploy ID from hook response: $RESPONSE"
+          if [ -z "${{ secrets.RENDER_DEPLOY_HOOK_API }}" ]; then
+            echo "::error::RENDER_DEPLOY_HOOK_API secret is not set"
             exit 1
           fi
-          echo "Deploy triggered: $DEPLOY_ID"
-
-          # Poll up to 15 min (90 × 10 s). Render rate-limit is 100 req/min.
-          for i in $(seq 1 90); do
-            STATUS=$(curl -fsSL \
-              -H "Authorization: Bearer $RENDER_API_KEY" \
-              "https://api.render.com/v1/services/$SERVICE_ID/deploys/$DEPLOY_ID" \
-              | jq -r '.status')
-            echo "[$i/90] status=$STATUS"
-            case "$STATUS" in
-              live)
-                echo "Deploy succeeded."
-                exit 0
-                ;;
-              build_failed|update_failed|pre_deploy_failed|canceled|deactivated)
-                echo "::error::Deploy failed with status: $STATUS"
-                exit 1
-                ;;
-            esac
-            sleep 10
-          done
-          echo "::error::Timed out after 15 minutes waiting for deploy $DEPLOY_ID"
-          exit 1
+      - name: Trigger Render deploy
+        run: curl -fsSL -X POST "${{ secrets.RENDER_DEPLOY_HOOK_API }}"
 
   deploy-web:
     name: Deploy Web
@@ -87,51 +46,11 @@ jobs:
     runs-on: ubuntu-latest
     environment: deployment
     steps:
-      - name: Validate secrets
+      - name: Validate secret
         run: |
-          for var in RENDER_DEPLOY_HOOK_WEB RENDER_API_KEY RENDER_SERVICE_ID_WEB; do
-            if [ -z "${!var}" ]; then
-              echo "::error::$var secret is not set"
-              exit 1
-            fi
-          done
-        env:
-          RENDER_DEPLOY_HOOK_WEB: ${{ secrets.RENDER_DEPLOY_HOOK_WEB }}
-          RENDER_API_KEY: ${{ secrets.RENDER_API_KEY }}
-          RENDER_SERVICE_ID_WEB: ${{ secrets.RENDER_SERVICE_ID_WEB }}
-
-      - name: Trigger and await deploy
-        env:
-          RENDER_API_KEY: ${{ secrets.RENDER_API_KEY }}
-          SERVICE_ID: ${{ secrets.RENDER_SERVICE_ID_WEB }}
-          DEPLOY_HOOK_URL: ${{ secrets.RENDER_DEPLOY_HOOK_WEB }}
-        run: |
-          RESPONSE=$(curl -fsSL -X POST "$DEPLOY_HOOK_URL")
-          DEPLOY_ID=$(echo "$RESPONSE" | jq -r '.id')
-
-          if [ -z "$DEPLOY_ID" ] || [ "$DEPLOY_ID" = "null" ]; then
-            echo "::error::Failed to get deploy ID from hook response: $RESPONSE"
+          if [ -z "${{ secrets.RENDER_DEPLOY_HOOK_WEB }}" ]; then
+            echo "::error::RENDER_DEPLOY_HOOK_WEB secret is not set"
             exit 1
           fi
-          echo "Deploy triggered: $DEPLOY_ID"
-
-          for i in $(seq 1 90); do
-            STATUS=$(curl -fsSL \
-              -H "Authorization: Bearer $RENDER_API_KEY" \
-              "https://api.render.com/v1/services/$SERVICE_ID/deploys/$DEPLOY_ID" \
-              | jq -r '.status')
-            echo "[$i/90] status=$STATUS"
-            case "$STATUS" in
-              live)
-                echo "Deploy succeeded."
-                exit 0
-                ;;
-              build_failed|update_failed|pre_deploy_failed|canceled|deactivated)
-                echo "::error::Deploy failed with status: $STATUS"
-                exit 1
-                ;;
-            esac
-            sleep 10
-          done
-          echo "::error::Timed out after 15 minutes waiting for deploy $DEPLOY_ID"
-          exit 1
+      - name: Trigger Render deploy
+        run: curl -fsSL -X POST "${{ secrets.RENDER_DEPLOY_HOOK_WEB }}"
