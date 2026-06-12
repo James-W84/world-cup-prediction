@@ -241,10 +241,6 @@ const PAGE_SIZE = 8;
 function UpcomingMatchesCard() {
   const [matches, setMatches] = useState<UpcomingMatchWithPrediction[]>([]);
   const [total, setTotal] = useState(0);
-  const [pendingByStage, setPendingByStage] = useState({
-    group: 0,
-    knockout: 0,
-  });
   const [page, setPage] = useState(0);
   const [loading, setLoading] = useState(true);
   const [paging, setPaging] = useState(false);
@@ -254,7 +250,6 @@ function UpcomingMatchesCard() {
       .then((data) => {
         setMatches(data.upcomingMatches);
         setTotal(data.totalUpcoming);
-        setPendingByStage(data.pendingByStage ?? { group: 0, knockout: 0 });
       })
       .catch(() => {})
       .finally(() => setLoading(false));
@@ -274,33 +269,6 @@ function UpcomingMatchesCard() {
   }
 
   const totalPages = Math.ceil(total / PAGE_SIZE);
-  const groupPending = pendingByStage.group;
-  const koPending = pendingByStage.knockout;
-
-  const ctaBadges = (
-    <div style={{ display: "flex", gap: 6 }}>
-      {groupPending > 0 && (
-        <Link
-          href="/predictions?stage=GROUP"
-          style={{ textDecoration: "none" }}
-        >
-          <span className="badge badge-danger" style={{ cursor: "pointer" }}>
-            {groupPending} group
-          </span>
-        </Link>
-      )}
-      {koPending > 0 && (
-        <Link
-          href="/predictions?stage=KNOCKOUT"
-          style={{ textDecoration: "none" }}
-        >
-          <span className="badge badge-danger" style={{ cursor: "pointer" }}>
-            {koPending} knockout
-          </span>
-        </Link>
-      )}
-    </div>
-  );
 
   return (
     <div className="card" style={{ padding: 0, overflow: "hidden" }}>
@@ -308,10 +276,6 @@ function UpcomingMatchesCard() {
         style={{
           padding: "14px 16px",
           borderBottom: "1px solid var(--border)",
-          display: "flex",
-          justifyContent: "space-between",
-          alignItems: "center",
-          gap: 8,
         }}
       >
         <h3
@@ -322,12 +286,10 @@ function UpcomingMatchesCard() {
             textTransform: "uppercase",
             letterSpacing: "0.06em",
             color: "var(--muted)",
-            whiteSpace: "nowrap",
           }}
         >
           Upcoming Matches
         </h3>
-        {(groupPending > 0 || koPending > 0) && ctaBadges}
       </div>
 
       {loading ? (
