@@ -689,7 +689,7 @@ export default function PredictionsPage() {
       </div>
 
       {/* Level 2: Sub-tabs (underline style, visually distinct from level 1) */}
-      <div style={{ display: 'flex', gap: 0, borderBottom: '1px solid var(--border)', marginBottom: 20, marginTop: 12 }}>
+      <div style={{ display: 'flex', gap: 0, borderBottom: '1px solid var(--border)', marginBottom: 20, marginTop: 12, overflowX: 'auto', scrollbarWidth: 'none' }}>
         {topStage === 'GROUP' ? (
           <>
             <SubTab label="Match Predictions" active={groupSubView === 'predictions'} onClick={() => setGroupSubView('predictions')} />
