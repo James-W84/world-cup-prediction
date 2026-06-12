@@ -145,7 +145,7 @@ export default function LeaguePage() {
         <Link href="/leagues" style={{ color: 'var(--muted)', fontSize: 13 }}>← Leagues</Link>
       </div>
 
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 20 }}>
+      <div className="league-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 20 }}>
         <div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
             <h1 style={{ marginBottom: 4 }}>{league.name}</h1>
@@ -155,7 +155,7 @@ export default function LeaguePage() {
           </div>
           <span style={{ color: 'var(--muted)', fontSize: 13 }}>{pagination.total} member{pagination.total !== 1 ? 's' : ''}</span>
         </div>
-        <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+        <div className="league-actions" style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
           <button className="btn-secondary" onClick={copyInvite} style={{ fontSize: 13 }}>
             {copied ? '✓ Copied!' : 'Copy invite'}
           </button>

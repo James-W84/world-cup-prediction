@@ -82,7 +82,7 @@ export default function LeaguesPage() {
     <div className="container">
       <h1 style={{ marginBottom: 24 }}>My Leagues</h1>
 
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, marginBottom: 32 }}>
+      <div className="leagues-form-grid" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, marginBottom: 32 }}>
         <div className="card">
           <h3 style={{ marginBottom: 4 }}>Create a League</h3>
           <p style={{ fontSize: 12, color: 'var(--muted)', marginBottom: 12 }}>

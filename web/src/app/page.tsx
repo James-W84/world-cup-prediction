@@ -413,6 +413,7 @@ function Dashboard({
   return (
     <div className="container">
       <div
+        className="dashboard-grid"
         style={{
           display: "grid",
           gridTemplateColumns: "1fr 1fr",
