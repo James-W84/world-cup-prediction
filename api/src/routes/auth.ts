@@ -6,6 +6,7 @@ import { predictionController } from '../controllers/predictionController';
 import { leagueController } from '../controllers/leagueController';
 import { matchController } from '../controllers/matchController';
 import { cronController } from '../controllers/cronController';
+import { validateController } from '../controllers/validateController';
 import { homeController } from '../controllers/homeController';
 
 const router = Router();
@@ -48,5 +49,6 @@ router.get('/matches/:matchId/predictions', requireAuth, matchController.getAllP
 // Admin (API key protected)
 router.post('/admin/cron/score', cronController.score);
 router.post('/admin/sync', cronController.sync);
+router.get('/admin/validate', validateController.run);
 
 export default router;
