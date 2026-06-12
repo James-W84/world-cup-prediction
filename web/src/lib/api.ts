@@ -116,6 +116,8 @@ export interface Match {
   group: string | null;
   status: 'UPCOMING' | 'LIVE' | 'COMPLETED';
   actualOutcome: string | null;
+  homeScore: number | null;
+  awayScore: number | null;
   predictions?: MatchPrediction[];
 }
 

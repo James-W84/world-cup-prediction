@@ -117,6 +117,8 @@ model Match {
   group          String?
   status         MatchStatus @default(UPCOMING)
   actualOutcome  Outcome?
+  homeScore      Int?
+  awayScore      Int?
   predictions    MatchPrediction[]
   createdAt      DateTime  @default(now())
   updatedAt      DateTime  @updatedAt

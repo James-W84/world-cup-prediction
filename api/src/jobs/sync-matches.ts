@@ -24,6 +24,8 @@ export async function syncMatchesFromApi(): Promise<{ created: number; updated: 
     const status = mapStatus(m.status);
     const actualOutcome = getOutcome(m);
     const group = m.group ? m.group.replace('GROUP_', '') : null;
+    const homeScore = m.score.fullTime.home ?? null;
+    const awayScore = m.score.fullTime.away ?? null;
 
     const existing = await prisma.match.findUnique({ where: { footballDataId: m.id } });
 
@@ -32,19 +34,19 @@ export async function syncMatchesFromApi(): Promise<{ created: number; updated: 
         // Group stage: sync everything including team names and kickoff
         await prisma.match.update({
           where: { id: existing.id },
-          data: { homeTeam, awayTeam, kickoffTime, stage, status, actualOutcome, group },
+          data: { homeTeam, awayTeam, kickoffTime, stage, status, actualOutcome, group, homeScore, awayScore },
         });
       } else {
         // Knockout: only update live status and actual outcome — never overwrite seeded bracket team names
         await prisma.match.update({
           where: { id: existing.id },
-          data: { status, actualOutcome },
+          data: { status, actualOutcome, homeScore, awayScore },
         });
       }
       updated++;
     } else {
       await prisma.match.create({
-        data: { footballDataId: m.id, homeTeam, awayTeam, kickoffTime, stage, status, actualOutcome, group },
+        data: { footballDataId: m.id, homeTeam, awayTeam, kickoffTime, stage, status, actualOutcome, group, homeScore, awayScore },
       });
       created++;
     }

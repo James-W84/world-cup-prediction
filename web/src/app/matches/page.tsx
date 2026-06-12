@@ -70,9 +70,11 @@ function MatchRow({ match, last }: { match: Match; last: boolean }) {
         {match.status === 'LIVE' && <span className="badge badge-success">LIVE</span>}
         {match.status === 'COMPLETED' && (
           <>
-            <span style={{ fontSize: 13, color: 'var(--muted)' }}>
-              {match.actualOutcome === 'HOME_WIN' ? '1–0' : match.actualOutcome === 'AWAY_WIN' ? '0–1' : '1–1'}
-            </span>
+            {match.homeScore != null && match.awayScore != null && (
+              <span style={{ fontSize: 13, color: 'var(--muted)' }}>
+                {match.homeScore}–{match.awayScore}
+              </span>
+            )}
             <span className="badge badge-info">FT</span>
           </>
         )}
