@@ -1,6 +1,6 @@
 'use client';
 import { useEffect, useState } from 'react';
-import { getMatches, Match } from '../../lib/api';
+import { getMatches, getGroupStandings, Match, GroupStanding } from '../../lib/api';
 import { BracketLayout, BRACKET_CARD_W } from '../../components/BracketLayout';
 
 const STAGE_LABELS: Record<string, string> = {
@@ -129,25 +129,83 @@ function ReadOnlyBracket({ matchesByRound }: { matchesByRound: Record<string, Ma
   );
 }
 
+// ─── Standings table ─────────────────────────────────────────────────────────
+
+function StandingsView({ standings }: { standings: Record<string, GroupStanding[]> }) {
+  const groups = Object.keys(standings).sort();
+  if (groups.length === 0) {
+    return <div className="card" style={{ textAlign: 'center', color: 'var(--muted)', padding: 40 }}>No standings yet.</div>;
+  }
+  return (
+    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: 16 }}>
+      {groups.map((group) => (
+        <div key={group} className="card" style={{ padding: 0, overflow: 'hidden' }}>
+          <div style={{ padding: '8px 14px', borderBottom: '1px solid var(--border)', fontSize: 12, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', color: 'var(--accent)' }}>
+            Group {group}
+          </div>
+          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
+            <thead>
+              <tr style={{ color: 'var(--muted)', fontSize: 11 }}>
+                <th style={{ padding: '6px 14px', textAlign: 'left', fontWeight: 500 }}>Team</th>
+                <th style={{ padding: '6px 6px', textAlign: 'center', fontWeight: 500 }}>P</th>
+                <th style={{ padding: '6px 6px', textAlign: 'center', fontWeight: 500 }}>W</th>
+                <th style={{ padding: '6px 6px', textAlign: 'center', fontWeight: 500 }}>D</th>
+                <th style={{ padding: '6px 6px', textAlign: 'center', fontWeight: 500 }}>L</th>
+                <th style={{ padding: '6px 14px 6px 6px', textAlign: 'center', fontWeight: 500 }}>Pts</th>
+              </tr>
+            </thead>
+            <tbody>
+              {standings[group].map((row, i) => {
+                const advancing = i < 2;
+                return (
+                  <tr key={row.team} style={{ borderTop: '1px solid var(--border)', background: i === 2 && standings[group][2]?.played > 0 ? 'rgba(245,158,11,0.05)' : undefined }}>
+                    <td style={{ padding: '8px 14px', display: 'flex', alignItems: 'center', gap: 6 }}>
+                      {advancing && row.played > 0 && (
+                        <span style={{ width: 3, height: 14, borderRadius: 2, background: 'var(--success)', flexShrink: 0, display: 'inline-block' }} />
+                      )}
+                      <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontWeight: row.played > 0 ? 500 : 400 }}>{row.team}</span>
+                    </td>
+                    <td style={{ padding: '8px 6px', textAlign: 'center', color: 'var(--muted)' }}>{row.played}</td>
+                    <td style={{ padding: '8px 6px', textAlign: 'center', color: 'var(--muted)' }}>{row.won}</td>
+                    <td style={{ padding: '8px 6px', textAlign: 'center', color: 'var(--muted)' }}>{row.drawn}</td>
+                    <td style={{ padding: '8px 6px', textAlign: 'center', color: 'var(--muted)' }}>{row.lost}</td>
+                    <td style={{ padding: '8px 14px 8px 6px', textAlign: 'center', fontWeight: 700 }}>{row.points}</td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      ))}
+    </div>
+  );
+}
+
 // ─── Page ────────────────────────────────────────────────────────────────────
 
 export default function MatchesPage() {
   const [activeTab, setActiveTab] = useState<'GROUP' | 'KNOCKOUT'>('GROUP');
-  const [sortBy, setSortBy] = useState<'group' | 'date'>('date');
+  const [sortBy, setSortBy] = useState<'group' | 'date' | 'standings'>('standings');
   const [viewMode, setViewMode] = useState<'schedule' | 'bracket'>('bracket');
 
   const [groupMatches, setGroupMatches] = useState<Match[]>([]);
+  const [standings, setStandings] = useState<Record<string, GroupStanding[]>>({});
   const [knockoutByRound, setKnockoutByRound] = useState<Record<string, Match[]>>({});
   const [loading, setLoading] = useState(true);
 
-  // Load group matches
+  // Load group matches + standings together
   useEffect(() => {
     if (activeTab !== 'GROUP') return;
     setLoading(true);
-    getMatches('GROUP').then(({ matches }) => {
+    Promise.all([
+      getMatches('GROUP'),
+      Object.keys(standings).length === 0 ? getGroupStandings() : Promise.resolve(standings),
+    ]).then(([{ matches }, s]) => {
       setGroupMatches(matches);
+      setStandings(s);
       setLoading(false);
     }).catch(() => setLoading(false));
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeTab]);
 
   // Load all knockout rounds (once, shared by both schedule and bracket views)
@@ -175,6 +233,7 @@ export default function MatchesPage() {
         <div style={{ display: 'flex', gap: 4 }}>
           {activeTab === 'GROUP' && (
             <>
+              <button className={sortBy === 'standings' ? 'btn-primary' : 'btn-secondary'} style={{ fontSize: 12, padding: '5px 10px' }} onClick={() => setSortBy('standings')}>Standings</button>
               <button className={sortBy === 'date' ? 'btn-primary' : 'btn-secondary'} style={{ fontSize: 12, padding: '5px 10px' }} onClick={() => setSortBy('date')}>By Date</button>
               <button className={sortBy === 'group' ? 'btn-primary' : 'btn-secondary'} style={{ fontSize: 12, padding: '5px 10px' }} onClick={() => setSortBy('group')}>By Group</button>
             </>
@@ -236,6 +295,8 @@ export default function MatchesPage() {
             ))}
           </div>
         )
+      ) : sortBy === 'standings' ? (
+        <StandingsView standings={standings} />
       ) : /* Group schedule */ groupMatches.length === 0 ? (
         <div className="card" style={{ textAlign: 'center', color: 'var(--muted)', padding: 40 }}>No matches yet.</div>
       ) : (

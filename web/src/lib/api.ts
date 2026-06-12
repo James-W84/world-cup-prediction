@@ -55,6 +55,14 @@ export async function getMatches(stage: string): Promise<{ matches: Match[]; kno
   return { matches: body.data as Match[], knockoutLocked: Boolean(body.knockoutLocked) };
 }
 
+// Group standings
+export async function getGroupStandings(): Promise<Record<string, GroupStanding[]>> {
+  const res = await fetch(`${getApiUrl()}/groups/standings`, { credentials: 'include' });
+  if (!res.ok) throw new Error(`HTTP ${res.status}`);
+  const body = await res.json();
+  return body.data as Record<string, GroupStanding[]>;
+}
+
 // Predictions
 export const savePrediction = (data: { matchId: string; predictedOutcome: string; isSubmitted?: boolean }) =>
   api.post<MatchPrediction>('/predictions', data);
@@ -109,6 +117,15 @@ export interface Match {
   status: 'UPCOMING' | 'LIVE' | 'COMPLETED';
   actualOutcome: string | null;
   predictions?: MatchPrediction[];
+}
+
+export interface GroupStanding {
+  team: string;
+  played: number;
+  won: number;
+  drawn: number;
+  lost: number;
+  points: number;
 }
 
 export interface MatchPrediction {

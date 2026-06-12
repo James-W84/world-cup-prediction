@@ -70,6 +70,59 @@ export const matchController = {
     }
   },
 
+  getGroupStandings: async (_req: Request, res: Response): Promise<void> => {
+    try {
+      const matches = await prisma.match.findMany({
+        where: { stage: 'GROUP' },
+        select: { group: true, homeTeam: true, awayTeam: true, actualOutcome: true },
+        orderBy: { kickoffTime: 'asc' },
+      });
+
+      type Row = { played: number; won: number; drawn: number; lost: number; points: number };
+      const groups: Record<string, Record<string, Row>> = {};
+
+      for (const m of matches) {
+        const g = m.group ?? 'TBD';
+        if (!groups[g]) groups[g] = {};
+        for (const team of [m.homeTeam, m.awayTeam]) {
+          if (!groups[g][team]) groups[g][team] = { played: 0, won: 0, drawn: 0, lost: 0, points: 0 };
+        }
+
+        if (m.actualOutcome) {
+          groups[g][m.homeTeam].played++;
+          groups[g][m.awayTeam].played++;
+
+          if (m.actualOutcome === 'HOME_WIN') {
+            groups[g][m.homeTeam].won++;    groups[g][m.homeTeam].points += 3;
+            groups[g][m.awayTeam].lost++;
+          } else if (m.actualOutcome === 'AWAY_WIN') {
+            groups[g][m.awayTeam].won++;    groups[g][m.awayTeam].points += 3;
+            groups[g][m.homeTeam].lost++;
+          } else {
+            groups[g][m.homeTeam].drawn++;  groups[g][m.homeTeam].points++;
+            groups[g][m.awayTeam].drawn++;  groups[g][m.awayTeam].points++;
+          }
+        }
+      }
+
+      const standings = Object.fromEntries(
+        Object.entries(groups)
+          .sort(([a], [b]) => a.localeCompare(b))
+          .map(([group, teams]) => [
+            group,
+            Object.entries(teams)
+              .map(([team, row]) => ({ team, ...row }))
+              .sort((a, b) => b.points - a.points || b.won - a.won),
+          ])
+      );
+
+      res.json({ success: true, data: standings });
+    } catch (error) {
+      logger.error('Error computing group standings', error);
+      res.status(500).json({ success: false, error: 'Failed to compute standings' });
+    }
+  },
+
   getAllPredictions: async (req: Request, res: Response): Promise<void> => {
     try {
       const { matchId } = req.params;

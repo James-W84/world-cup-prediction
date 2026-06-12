@@ -45,6 +45,7 @@ router.delete('/leagues/:leagueId', requireAuth, leagueController.deleteLeague);
 router.get('/matches', matchController.getByStage);
 router.get('/matches/:matchId', matchController.getById);
 router.get('/matches/:matchId/predictions', requireAuth, matchController.getAllPredictions);
+router.get('/groups/standings', matchController.getGroupStandings);
 
 // Admin (API key protected)
 router.post('/admin/cron/score', cronController.score);
