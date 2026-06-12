@@ -145,12 +145,12 @@ function StandingsView({ standings }: { standings: Record<string, GroupStanding[
           </div>
           <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13, tableLayout: 'fixed' }}>
             <colgroup>
-              <col /> {/* Team — takes remaining space */}
+              <col />
               <col style={{ width: 28 }} />
               <col style={{ width: 28 }} />
               <col style={{ width: 28 }} />
               <col style={{ width: 28 }} />
-              <col style={{ width: 38 }} /> {/* Pts — slightly wider */}
+              <col style={{ width: 38 }} />
             </colgroup>
             <thead>
               <tr style={{ color: 'var(--muted)', fontSize: 11 }}>
