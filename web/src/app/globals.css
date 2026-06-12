@@ -143,6 +143,7 @@ nav .nav-links { display: flex; gap: 16px; align-items: center; }
 /* ── Bottom tab bar (mobile only) ───────────────────────────────────────────── */
 .bottom-nav {
   display: none;
+  top: auto; /* prevent inheriting nav { top: 0 } which causes full-height stretch */
 }
 
 @media (max-width: 640px) {
