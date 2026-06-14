@@ -1,6 +1,6 @@
 'use client';
 import { useState } from 'react';
-import { getGoogleAuthUrl } from '../lib/api';
+import { getApiUrl, getGoogleAuthUrl } from '../lib/api';
 
 type Status = 'idle' | 'warming' | 'redirecting';
 
@@ -23,7 +23,7 @@ export function GoogleAuthButton({
 
   async function handleClick() {
     setStatus('warming');
-    await waitForApi();
+    await waitForApi(getApiUrl());
     setStatus('redirecting');
     window.location.assign(getGoogleAuthUrl());
   }
@@ -42,11 +42,11 @@ export function GoogleAuthButton({
 
 // Polls /api/health (via Next.js proxy) until the API responds 200.
 // Gives up after ~60 s and lets the redirect proceed anyway.
-async function waitForApi(maxWaitMs = 60_000, intervalMs = 2_000): Promise<void> {
+async function waitForApi(apiUrl: string, maxWaitMs = 60_000, intervalMs = 2_000): Promise<void> {
   const deadline = Date.now() + maxWaitMs;
   while (Date.now() < deadline) {
     try {
-      const res = await fetch('/api/health', { signal: AbortSignal.timeout(4_000) });
+      const res = await fetch(`${apiUrl}/health`, { signal: AbortSignal.timeout(4_000) });
       if (res.ok) return;
     } catch {
       // network error or timeout — keep retrying
